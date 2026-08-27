@@ -1,0 +1,74 @@
+--- src/services/stateStore.tsx
++++ src/services/stateStore.tsx
+@@ -141,6 +141,10 @@
+   hostMuteSeat: (roomId: string, seatIndex: number) => void;
+   hostKickSeat: (roomId: string, seatIndex: number) => void;
++  hostUpdateRoom: (roomId: string, updates: Partial<VoiceRoom>) => void;
++  hostBanUser: (roomId: string, userId: string) => void;
++  hostAssignModerator: (roomId: string, userId: string) => void;
++  hostRemoveModerator: (roomId: string, userId: string) => void;
+   likeRoom: (roomId: string) => void;
+   sendRoomChatMessage: (roomId: string, text: string) => void;
+@@ -948,6 +952,50 @@
+     );
+     audioEngine.playSoundEffect('magic');
+   };
+ 
++  const hostUpdateRoom = (roomId: string, updates: Partial<VoiceRoom>) => {
++    setRooms((prev) =>
++      prev.map((r) => {
++        if (r.id !== roomId) return r;
++        const updated = { ...r, ...updates };
++        if (activeRoom?.id === roomId) setActiveRoom(updated);
++        return updated;
++      })
++    );
++  };
++
++  const hostBanUser = (roomId: string, userId: string) => {
++    setRooms((prev) =>
++      prev.map((r) => {
++        if (r.id !== roomId) return r;
++        const banned = r.bannedUserIds || [];
++        const updated = { ...r, bannedUserIds: [...banned, userId] };
++        if (activeRoom?.id === roomId) setActiveRoom(updated);
++        return updated;
++      })
++    );
++  };
++
++  const hostAssignModerator = (roomId: string, userId: string) => {
++    setRooms((prev) =>
++      prev.map((r) => {
++        if (r.id !== roomId) return r;
++        const mods = r.moderatorIds || [];
++        if (mods.includes(userId)) return r;
++        const updated = { ...r, moderatorIds: [...mods, userId] };
++        if (activeRoom?.id === roomId) setActiveRoom(updated);
++        return updated;
++      })
++    );
++  };
++
++  const hostRemoveModerator = (roomId: string, userId: string) => {
++    setRooms((prev) =>
++      prev.map((r) => {
++        if (r.id !== roomId) return r;
++        const updated = { ...r, moderatorIds: r.moderatorIds.filter(id => id !== userId) };
++        if (activeRoom?.id === roomId) setActiveRoom(updated);
++        return updated;
++      })
++    );
++  };
++
+   const likeRoom = (roomId: string) => {
+@@ -2701,6 +2749,10 @@
+         hostLockSeat,
+         hostMuteSeat,
+         hostKickSeat,
++        hostUpdateRoom,
++        hostBanUser,
++        hostAssignModerator,
++        hostRemoveModerator,
+         likeRoom,
+         sendRoomChatMessage,
