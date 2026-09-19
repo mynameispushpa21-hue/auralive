@@ -14,7 +14,7 @@ export const AdminSellersTable: React.FC = () => {
     agencyName: '',
     discountPercentage: 0,
     coins: 0,
-    verificationLevel: 'standard' as 'standard' | 'master'
+    verificationLevel: 'standard' as 'standard' | 'gold' | 'diamond' | 'master'
   });
 
   // Add Seller Modal State
@@ -24,7 +24,7 @@ export const AdminSellersTable: React.FC = () => {
   const [addForm, setAddForm] = useState({
     agencyName: '',
     discountPercentage: 0,
-    verificationLevel: 'standard' as 'standard' | 'master'
+    verificationLevel: 'standard' as 'standard' | 'gold' | 'diamond' | 'master'
   });
 
   const sellers = allUsers.filter(u => u.role === 'seller' || u.role === 'agent' || u.isSeller);

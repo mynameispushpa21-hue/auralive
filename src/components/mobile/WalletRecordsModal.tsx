@@ -126,7 +126,7 @@ export const WalletRecordsModal: React.FC<WalletRecordsModalProps> = ({ isOpen, 
                     <div className="truncate">
                       <span className="font-bold text-white block truncate">{t.description}</span>
                       <span className="text-[10px] text-slate-400">
-                        {new Date(t.timestamp).toLocaleDateString()} • {new Date(t.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(t.createdAt).toLocaleDateString()} • {new Date(t.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
                   </div>

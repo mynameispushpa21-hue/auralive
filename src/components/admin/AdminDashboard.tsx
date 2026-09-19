@@ -14,6 +14,8 @@ import {
   Trash2,
   MicOff,
   CheckCircle,
+  CreditCard,
+  ShoppingBag,
 } from 'lucide-react';
 import { useAppState } from '../../services/stateStore';
 
@@ -56,6 +58,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onNavigateTab })
         </div>
 
         <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => onNavigateTab('store')}
+            className="px-3.5 py-2 rounded-xl bg-[#1A1A24] hover:bg-[#232332] border border-[#232332] text-xs font-bold text-violet-300 flex items-center gap-1.5 transition-colors"
+          >
+            <ShoppingBag className="w-4 h-4" />
+            <span>Store Assets</span>
+          </button>
+
+          <button
+            onClick={() => onNavigateTab('gateways')}
+            className="px-3.5 py-2 rounded-xl bg-[#1A1A24] hover:bg-[#232332] border border-[#232332] text-xs font-bold text-violet-300 flex items-center gap-1.5 transition-colors"
+          >
+            <CreditCard className="w-4 h-4" />
+            <span>Gateways</span>
+          </button>
+
           <button
             onClick={() => onNavigateTab('withdrawals')}
             className="px-3.5 py-2 rounded-xl bg-[#1A1A24] hover:bg-[#232332] border border-[#232332] text-xs font-bold text-amber-300 flex items-center gap-1.5 transition-colors"

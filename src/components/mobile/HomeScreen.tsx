@@ -14,9 +14,11 @@ import {
   ChevronRight,
   Gift,
   Coins,
+  Gamepad2,
 } from 'lucide-react';
 import { useAppState } from '../../services/stateStore';
 import { VoiceRoom } from '../../types';
+import { TopHostsLeaderboard } from './TopHostsLeaderboard';
 
 interface HomeScreenProps {
   onJoinRoom: (roomId: string) => void;
@@ -25,6 +27,7 @@ interface HomeScreenProps {
   onOpenVIPCenter: () => void;
   onOpenEvents: () => void;
   onOpenRankings: () => void;
+  onOpenGames?: () => void;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -34,6 +37,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenVIPCenter,
   onOpenEvents,
   onOpenRankings,
+  onOpenGames,
 }) => {
   const { rooms, currentUser, events, leaderboards, allUsers } = useAppState();
   const [activeTab, setActiveTab] = useState<'Recommended' | 'Popular' | 'New' | 'VIP'>('Recommended');
@@ -58,7 +62,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   });
 
   return (
-    <div id="home-screen" className="flex flex-col gap-4 pb-20 text-slate-100 bg-[#0B0B0F]">
+    <div id="home-screen" className="flex flex-col gap-4 pb-20 text-slate-100 bg-transparent">
       {/* Top Banner Carousel / Event Spotlight */}
       {events.length > 0 && (
         <div
@@ -83,73 +87,51 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       {/* Quick Action Navigation Pills */}
       <div className="px-4 grid grid-cols-4 gap-2">
         <button
+          id="home-quick-ranks"
           onClick={onOpenRankings}
-          className="p-2 rounded-2xl bg-[#121217] border border-[#232332] hover:border-amber-500/40 flex flex-col items-center justify-center hover:brightness-110 transition-all shadow-xs"
+          className="p-2.5 rounded-2xl bg-gradient-to-b from-amber-950/60 to-[#121217] border border-amber-500/40 hover:border-amber-400 flex flex-col items-center justify-center hover:brightness-110 transition-all shadow-xs relative group"
         >
-          <span className="text-xl">🏆</span>
-          <span className="text-[11px] font-bold text-amber-300 mt-1">Rankings</span>
+          <span className="text-lg group-hover:scale-110 transition-transform">🏆</span>
+          <span className="text-[10px] font-bold text-amber-300 mt-1">Ranks</span>
+          <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-amber-500 text-[8px] font-black text-slate-950 shadow-xs">TOP</span>
         </button>
 
         <button
+          id="home-quick-games"
+          onClick={onOpenGames}
+          className="p-2.5 rounded-2xl bg-gradient-to-b from-violet-950/60 to-[#121217] border border-violet-500/40 hover:border-violet-400 flex flex-col items-center justify-center hover:brightness-110 transition-all shadow-xs relative group"
+        >
+          <span className="text-lg group-hover:scale-110 transition-transform">🎮</span>
+          <span className="text-[10px] font-bold text-violet-300 mt-1">Games</span>
+          <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 text-[8px] font-black text-white shadow-xs">HOT</span>
+        </button>
+
+        <button
+          id="home-quick-vip"
           onClick={onOpenVIPCenter}
-          className="p-2 rounded-2xl bg-[#121217] border border-[#232332] hover:border-violet-500/40 flex flex-col items-center justify-center hover:brightness-110 transition-all shadow-xs"
+          className="p-2.5 rounded-2xl bg-gradient-to-b from-fuchsia-950/60 to-[#121217] border border-fuchsia-500/40 hover:border-fuchsia-400 flex flex-col items-center justify-center hover:brightness-110 transition-all shadow-xs relative group"
         >
-          <span className="text-xl">👑</span>
-          <span className="text-[11px] font-bold text-violet-300 mt-1">VIP Club</span>
+          <span className="text-lg group-hover:scale-110 transition-transform">👑</span>
+          <span className="text-[10px] font-bold text-fuchsia-300 mt-1">VIP</span>
+          <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-gradient-to-r from-fuchsia-500 to-pink-500 text-[8px] font-black text-white shadow-xs">PRO</span>
         </button>
 
         <button
-          onClick={onOpenCoinStore}
-          className="p-2 rounded-2xl bg-[#121217] border border-[#232332] hover:border-emerald-500/40 flex flex-col items-center justify-center hover:brightness-110 transition-all shadow-xs"
-        >
-          <span className="text-xl">🪙</span>
-          <span className="text-[11px] font-bold text-emerald-300 mt-1">Recharge</span>
-        </button>
-
-        <button
+          id="home-quick-golive"
           onClick={onOpenCreateRoom}
-          className="p-2 rounded-2xl bg-[#121217] border border-[#232332] hover:border-rose-500/40 flex flex-col items-center justify-center hover:brightness-110 transition-all shadow-xs"
+          className="p-2.5 rounded-2xl bg-gradient-to-b from-rose-950/60 to-[#121217] border border-rose-500/40 hover:border-rose-400 flex flex-col items-center justify-center hover:brightness-110 transition-all shadow-xs relative group"
         >
-          <span className="text-xl">🎙️</span>
-          <span className="text-[11px] font-bold text-rose-300 mt-1">Go Live</span>
+          <span className="text-lg group-hover:scale-110 transition-transform">🎙️</span>
+          <span className="text-[10px] font-bold text-rose-300 mt-1">Go Live</span>
+          <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-gradient-to-r from-rose-500 to-red-600 text-[8px] font-black text-white shadow-xs animate-pulse">LIVE</span>
         </button>
       </div>
 
-      {/* Top Voice Creators Podium Bar */}
-      <div className="px-4">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-1.5">
-            <Sparkles className="w-4 h-4 text-violet-400" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Top Voice Stars</h3>
-          </div>
-          <button onClick={onOpenRankings} className="text-xs text-violet-400 hover:underline flex items-center gap-0.5">
-            <span>View All</span>
-            <ChevronRight className="w-3 h-3" />
-          </button>
-        </div>
-
-        <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-1">
-          {leaderboards.hosts.slice(0, 6).map((host, idx) => (
-            <div key={host.userId} className="flex flex-col items-center shrink-0 cursor-pointer group">
-              <div className="relative">
-                <img
-                  src={host.avatar}
-                  alt={host.username}
-                  className="w-12 h-12 rounded-full object-cover ring-2 ring-violet-500 group-hover:scale-105 transition-transform"
-                />
-                <span className="absolute -top-1 -right-1 px-1.5 py-0.2 rounded-full bg-gradient-to-r from-violet-600 to-pink-500 text-[9px] font-black text-white shadow-xs">
-                  #{idx + 1}
-                </span>
-                <span className="absolute -bottom-1 -left-1 text-xs">{host.countryFlag}</span>
-              </div>
-              <span className="text-[10px] font-bold text-slate-200 mt-1 truncate max-w-[60px] text-center">
-                {host.username}
-              </span>
-              <span className="text-[9px] font-bold text-violet-400">{host.formattedScore}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Top Hosts Leaderboard Module (Top 5 Hosts by Diamond Earnings) */}
+      <TopHostsLeaderboard
+        onOpenRankings={onOpenRankings}
+        onJoinRoom={onJoinRoom}
+      />
 
       {/* Search & Category Filter */}
       <div className="px-4 space-y-2">

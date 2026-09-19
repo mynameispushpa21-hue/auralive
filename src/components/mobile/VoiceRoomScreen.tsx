@@ -23,7 +23,10 @@ import {
   X,
   Crown,
   Disc,
-
+  Copy,
+  Zap,
+  Palette,
+  Gem,
 } from 'lucide-react';
 import { useAppState } from '../../services/stateStore';
 import { audioEngine } from '../../services/audioEngine';
@@ -32,19 +35,23 @@ import { GiftComboButton } from './GiftComboButton';
 import { SellerBadge } from '../reseller/SellerBadge';
 import { RoomSettingsModal } from './RoomSettingsModal';
 import { ShareRoomModal } from './ShareRoomModal';
+import { RoomLeaderboardModal } from './RoomLeaderboardModal';
 import { RoomAudienceModal } from './RoomAudienceModal';
-import { Settings } from 'lucide-react';
+import { CoupleMicSeatPair } from './CoupleMicSeatPair';
+import { Settings, Trophy } from 'lucide-react';
 
 interface VoiceRoomScreenProps {
   onOpenGiftModal: (targetUser?: UserProfile | null) => void;
   onOpenCoinStore: () => void;
   onOpenBuyCoinsFromSeller?: () => void;
+  isGiftModalOpen?: boolean;
 }
 
 export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
   onOpenGiftModal,
   onOpenCoinStore,
   onOpenBuyCoinsFromSeller,
+  isGiftModalOpen = false,
 }) => {
   const {
     activeRoom,
@@ -63,23 +70,41 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
     playRoomDJEffect,
     roomChatMessages,
     toggleFollowUser,
+    isUserFollowed,
     activeCombo,
     triggerComboGift,
     resetCombo,
     bindCpPartner,
+    allUsers,
+    hostUpdateRoom,
   } = useAppState();
 
   const [chatInput, setChatInput] = useState('');
   const [showSoundboard, setShowSoundboard] = useState(false);
   const [selectedSeatForAction, setSelectedSeatForAction] = useState<MicSeat | null>(null);
+  const [demoCpPairs, setDemoCpPairs] = useState<Record<number, boolean>>({});
   const [floatingHearts, setFloatingHearts] = useState<{ id: number; x: number }[]>([]);
   const [isAmbientPlaying, setIsAmbientPlaying] = useState(false);
   const [isRealMicActive, setIsRealMicActive] = useState(false);
   const [localMicVolume, setLocalMicVolume] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsInitialView, setSettingsInitialView] = useState<'main' | 'moderators' | 'banned' | 'background'>('main');
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [showAudienceModal, setShowAudienceModal] = useState(false);
+  const [showExitDialog, setShowExitDialog] = useState(false);
+  const [copiedIdToast, setCopiedIdToast] = useState(false);
   const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  const handleCopyId = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!activeRoom) return;
+    const idToCopy = String(activeRoom.roomIdNumber || activeRoom.host.numericId || '201650');
+    navigator.clipboard?.writeText(idToCopy);
+    setCopiedIdToast(true);
+    audioEngine.playSoundEffect('chime');
+    setTimeout(() => setCopiedIdToast(false), 2000);
+  };
 
   if (!activeRoom) return null;
 
@@ -132,25 +157,105 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
     setIsAmbientPlaying(next);
   };
 
-  // Render Seat Grid Class based on seat count
-  const getGridColsClass = () => {
-    if (activeRoom.seatCount % 5 === 0) return 'grid-cols-5';
-    if (activeRoom.seatCount <= 4) return 'grid-cols-4';
-    if (activeRoom.seatCount <= 6) return 'grid-cols-3';
-    if (activeRoom.seatCount <= 8) return 'grid-cols-4';
-    if (activeRoom.seatCount <= 9) return 'grid-cols-3';
-    if (activeRoom.seatCount <= 12) return 'grid-cols-4';
-    return 'grid-cols-5';
+  // Ensure each user ID appears on at most ONE seat in the room (strictly deduplicate)
+  const sanitizedSeats = React.useMemo(() => {
+    if (!activeRoom || !activeRoom.seats) return [];
+    const seenUserIds = new Set<string>();
+    return activeRoom.seats.map((seat, index) => {
+      const s = { ...seat, seatIndex: seat.seatIndex !== undefined ? seat.seatIndex : index };
+      const effectiveUserId = s.userId || s.user?.id || null;
+      if (!effectiveUserId) {
+        return { ...s, userId: null, user: null, isSpeaking: false, volumeLevel: 0 };
+      }
+      if (seenUserIds.has(effectiveUserId)) {
+        // DUPLICATE USER ID DETECTED: Automatically vacate this duplicate seat!
+        return {
+          ...s,
+          userId: null,
+          user: null,
+          isSpeaking: false,
+          isMuted: false,
+          volumeLevel: 0,
+        };
+      }
+      seenUserIds.add(effectiveUserId);
+      const userObj = allUsers.find((u) => u.id === effectiveUserId) || s.user || null;
+      return { ...s, userId: effectiveUserId, user: userObj };
+    });
+  }, [activeRoom?.seats, allUsers]);
+
+  // Group sanitized seats into couple pairs (NO. 1 & NO. 2, NO. 3 & NO. 4, etc. matching screenshot)
+  const seatPairs = React.useMemo(() => {
+    const pairs: { seatLeft: MicSeat; seatRight?: MicSeat; pairIndex: number }[] = [];
+    for (let i = 0; i < sanitizedSeats.length; i += 2) {
+      pairs.push({
+        seatLeft: sanitizedSeats[i],
+        seatRight: sanitizedSeats[i + 1],
+        pairIndex: Math.floor(i / 2),
+      });
+    }
+    return pairs;
+  }, [sanitizedSeats]);
+
+  const toggleDemoCpPair = (pairIdx: number) => {
+    setDemoCpPairs((prev) => {
+      const next = !prev[pairIdx];
+      if (next) {
+        audioEngine.playSoundEffect('magic');
+      }
+      return { ...prev, [pairIdx]: next };
+    });
   };
 
-  const isManySeats = activeRoom.seatCount > 12;
-  const avatarSizeClass = isManySeats ? 'w-10 h-10' : 'w-14 h-14';
-  const labelTextClass = isManySeats ? 'text-[9px]' : 'text-[11px]';
+  const handleSeatCpPartner = (targetSeatIndex: number) => {
+    if (!activeRoom) return;
+    const partnerId = currentUser.cpPartnerId;
+    const partner = partnerId ? allUsers.find((u) => u.id === partnerId) : null;
+    if (partner) {
+      // 1. Remove partner from ANY existing seat first so their ID never shows twice!
+      // 2. Assign partner to targetSeatIndex
+      const updatedSeats = activeRoom.seats.map((s, idx) => {
+        const currentSeatIndex = s.seatIndex !== undefined ? s.seatIndex : idx;
+        if (currentSeatIndex === targetSeatIndex) {
+          return {
+            ...s,
+            seatIndex: targetSeatIndex,
+            userId: partner.id,
+            user: partner,
+            isMuted: false,
+            isSpeaking: false,
+            volumeLevel: 0,
+          };
+        }
+        if (s.userId === partner.id || s.user?.id === partner.id) {
+          return {
+            ...s,
+            seatIndex: currentSeatIndex,
+            userId: null,
+            user: null,
+            isMuted: false,
+            isSpeaking: false,
+            volumeLevel: 0,
+          };
+        }
+        return {
+          ...s,
+          seatIndex: currentSeatIndex,
+        };
+      });
+      hostUpdateRoom(activeRoom.id, { seats: updatedSeats });
+      audioEngine.playSoundEffect('magic');
+    }
+  };
 
   return (
     <div
       id="voice-room-container"
-      className={`relative w-full h-full flex flex-col justify-between overflow-hidden bg-gradient-to-b ${activeRoom.backgroundTheme} text-slate-100 select-none`}
+      className={`relative w-full h-full flex flex-col justify-between overflow-hidden ${
+        activeRoom.backgroundTheme.startsWith('from-')
+          ? `bg-gradient-to-b ${activeRoom.backgroundTheme}`
+          : activeRoom.backgroundTheme
+      } text-slate-100 select-none`}
     >
       {/* Floating Hearts Layer */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-20">
@@ -167,97 +272,120 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
         ))}
       </div>
 
-      {/* TOP BAR: Room Header & Host Info */}
-      <div className="relative z-10 px-4 pt-3 pb-2 flex items-center justify-between border-b border-[#232332] bg-[#0B0B0F]/70 backdrop-blur-md">
-        {/* Host Avatar & Details */}
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => minimizeRoom(true)}
-            className="p-1.5 rounded-full bg-[#161620]/80 hover:bg-[#232332] text-white/80 transition-colors border border-[#232332]"
-            title="Minimize Room"
-          >
-            <ChevronDown className="w-4 h-4" />
-          </button>
-
-          <div className="flex items-center gap-2 bg-[#121217]/90 pr-3 p-1 rounded-full border border-[#232332]">
-            <div className="relative">
-              <img
-                src={activeRoom.host.avatar}
-                alt={activeRoom.host.displayName}
-                className="w-8 h-8 rounded-full object-cover ring-2 ring-violet-500"
-              />
-              <span className="absolute -bottom-1 -right-1 px-1 rounded-full bg-violet-600 text-[8px] font-black text-white">
-                Lv{activeRoom.host.level}
-              </span>
-            </div>
-
-            <div className="text-left">
-              <div className="flex items-center gap-1">
-                <span className="text-xs font-bold text-white max-w-[90px] truncate">
-                  {activeRoom.host.displayName}
-                </span>
-                <Crown className="w-3 h-3 text-amber-400 shrink-0" />
-              </div>
-              <p className="text-[10px] text-slate-300 flex items-center gap-1">
-                <span>{activeRoom.host.countryFlag}</span>
-                <span>ID: {activeRoom.roomIdNumber}</span>
-              </p>
-            </div>
-
-            {activeRoom.hostId !== currentUser.id && (
-              <button
-                onClick={() => toggleFollowUser(activeRoom.hostId)}
-                className="ml-1 p-1 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:scale-105 transition-transform"
-                title="Follow Host"
-              >
-                <Plus className="w-3 h-3 stroke-[3]" />
-              </button>
-            )}
+      {/* TOP BAR: Room Header & Host Info (Styled to match requested design) */}
+      <div className="relative z-10 px-3 pt-3 pb-2 flex items-center justify-between bg-[#060c18]/85 backdrop-blur-md border-b border-[#0f1d36]/60">
+        {/* Host Avatar & Details Capsule */}
+        <div className="flex items-center gap-2 bg-[#091528]/90 border border-[#143054] rounded-full pl-1.5 pr-2.5 py-1 backdrop-blur-md shadow-xs max-w-[56%]">
+          <div className="relative shrink-0">
+            <img
+              src={activeRoom.host.avatar}
+              alt={activeRoom.host.displayName}
+              className="w-8 h-8 rounded-full object-cover ring-2 ring-[#00e5ff] shadow-sm"
+            />
           </div>
+
+          <div className="text-left flex flex-col justify-center min-w-0 pr-0.5">
+            <div className="flex items-center gap-1 leading-tight">
+              <span className="text-xs font-bold text-white truncate max-w-[65px]">
+                {activeRoom.host.displayName}
+              </span>
+              <span className="text-amber-400 text-xs select-none">⚡</span>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] text-[#00e5ff] font-medium leading-tight mt-0.5">
+              <span>ID:</span>
+              <span className="font-mono">{activeRoom.roomIdNumber || activeRoom.host.numericId || '201650'}</span>
+              <button
+                onClick={handleCopyId}
+                className="p-0.5 text-[#00e5ff]/80 hover:text-white transition-colors"
+                title="Copy ID"
+              >
+                <Copy className="w-2.5 h-2.5 inline" />
+              </button>
+            </div>
+          </div>
+
+          {/* Host Action Button: Only displays "Joined" if user follows this host, otherwise "+ Follow" */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              if (activeRoom.hostId !== currentUser.id) {
+                toggleFollowUser(activeRoom.hostId);
+              }
+            }}
+            className={`ml-auto shrink-0 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all border ${
+              activeRoom.hostId === currentUser.id
+                ? 'bg-[#182338]/80 text-slate-400 border-slate-700/30 cursor-default'
+                : isUserFollowed(activeRoom.hostId)
+                ? 'bg-[#182338] hover:bg-[#202e48] text-slate-300 border-slate-700/40 shadow-xs'
+                : 'bg-cyan-500/20 hover:bg-cyan-500/30 text-[#00e5ff] border-cyan-500/50 shadow-xs active:scale-95'
+            }`}
+            title={
+              activeRoom.hostId === currentUser.id
+                ? 'Host'
+                : isUserFollowed(activeRoom.hostId)
+                ? 'Unfollow Host'
+                : 'Follow Host'
+            }
+          >
+            {activeRoom.hostId === currentUser.id
+              ? 'Host'
+              : isUserFollowed(activeRoom.hostId)
+              ? 'Joined'
+              : '+ Follow'}
+          </button>
         </div>
 
-        {/* Right Info: Live Audience & Likes */}
+        {/* Right Info: Audience, Zap/Boost, Settings, Exit */}
         <div className="flex items-center gap-2">
           {/* Audience pill */}
-          <button 
+          <button
             onClick={() => setShowAudienceModal(true)}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#121217]/90 border border-[#232332] text-xs font-bold hover:bg-[#1A1A24] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#091528]/90 border border-[#143054] text-[#00e5ff] text-xs font-semibold hover:bg-[#0d1e38] transition-colors shadow-xs"
+            title="Live Audience"
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <Users className="w-3 h-3 text-slate-300" />
+            <Users className="w-3.5 h-3.5 text-[#00e5ff]" />
             <span>{activeRoom.audienceCount}</span>
           </button>
 
-          {/* Hot Score */}
-          <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-violet-500/20 border border-violet-500/30 text-violet-300 text-xs font-bold">
-            <Flame className="w-3 h-3 text-violet-400 fill-violet-400" />
-            <span>{activeRoom.hotScore.toLocaleString()}</span>
-          </div>
-
+          {/* Lightning Zap Boost button */}
           <button
-            onClick={() => setShowShareModal(true)}
-            className="p-1.5 rounded-full bg-[#1A1A24] hover:bg-[#232332] border border-[#232332] text-slate-300 transition-colors"
-            title="Share Room"
+            onClick={() => setShowLeaderboard(true)}
+            className="w-8 h-8 rounded-full bg-[#091528]/90 border border-cyan-500/60 flex items-center justify-center text-pink-500 hover:border-cyan-400 hover:scale-105 active:scale-95 transition-all shadow-xs"
+            title="Room Hot Ranking & Boost"
           >
-            <Share2 className="w-4 h-4" />
+            <Zap className="w-4 h-4 text-pink-500 fill-pink-500/20" />
           </button>
 
-          {(isHost || isModerator) && (
+          {/* Room Theme Customization (Host only) */}
+          {isHost && (
             <button
-              onClick={() => setShowSettings(true)}
-              className="p-1.5 rounded-full bg-[#1A1A24] hover:bg-[#232332] border border-[#232332] text-slate-300 transition-colors"
-              title="Room Settings"
+              onClick={() => {
+                setSettingsInitialView('background');
+                setShowSettings(true);
+              }}
+              className="w-8 h-8 rounded-full bg-[#091528]/90 border border-violet-500/60 flex items-center justify-center text-violet-300 hover:text-white hover:border-violet-400 hover:scale-105 active:scale-95 transition-all shadow-xs"
+              title="Stage Themes & Backgrounds"
             >
-              <Settings className="w-4 h-4" />
+              <Palette className="w-4 h-4 text-violet-400" />
             </button>
           )}
 
+          {/* Settings button */}
           <button
-            onClick={leaveRoom}
-            className="p-1.5 rounded-full bg-rose-500/20 hover:bg-rose-500/40 border border-rose-500/40 text-rose-300 transition-colors"
-            title="Leave Room"
+            onClick={() => setShowSettings(true)}
+            className="w-8 h-8 rounded-full bg-[#091528]/90 border border-slate-700/60 flex items-center justify-center text-slate-300 hover:text-white hover:border-slate-500 hover:scale-105 active:scale-95 transition-all shadow-xs"
+            title="Room Settings"
           >
-            <X className="w-4 h-4" />
+            <Settings className="w-4 h-4" />
+          </button>
+
+          {/* Exit / Close button */}
+          <button
+            onClick={() => setShowExitDialog(true)}
+            className="w-8 h-8 rounded-full bg-[#35101a]/95 border border-rose-600/50 flex items-center justify-center text-rose-300 hover:text-white hover:bg-rose-900/80 hover:scale-105 active:scale-95 transition-all shadow-xs"
+            title="Exit / Minimize Room"
+          >
+            <X className="w-4 h-4 stroke-[2.5]" />
           </button>
         </div>
       </div>
@@ -280,110 +408,44 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
         </div>
       )}
 
-      {/* STAGE: MICROPHONE SEATS GRID */}
-      <div className="relative z-10 flex-1 px-4 py-3 flex flex-col justify-start overflow-y-auto no-scrollbar mask-gradient">
-        <div className={`grid ${getGridColsClass()} ${isManySeats ? 'gap-2' : 'gap-3'} max-w-full mx-auto w-full pb-4`}>
-          {activeRoom.seats.map((seat) => {
-            const isUserHere = seat.userId === currentUser.id;
-            const isHostSeat = seat.seatIndex === 0;
-            const effectiveSpeaking = isUserHere && isRealMicActive ? localMicVolume > 15 : seat.isSpeaking;
+      {/* STAGE: COUPLE MICROPHONE SEATS GRID (Matching screenshot: 2-column paired capsules with wire light) */}
+      <div className="relative z-10 flex-1 px-3 py-2 flex flex-col justify-start overflow-y-auto min-h-0">
+        {/* CP Status Header */}
+        <div className="flex items-center justify-between px-2 mb-2 max-w-sm mx-auto w-full shrink-0">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold text-[#c8b7a4]">
+            <span className="w-2 h-2 rounded-full bg-pink-500 animate-pulse shadow-[0_0_8px_#ec4899]" />
+            <span className="tracking-wide">Couple Mic Seats</span>
+          </div>
+          <button
+            onClick={() => toggleDemoCpPair(0)}
+            className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 border transition-all ${
+              demoCpPairs[0]
+                ? 'bg-gradient-to-r from-pink-600 to-rose-600 text-white border-pink-400 shadow-[0_0_12px_rgba(244,63,94,0.6)]'
+                : 'bg-[#221c17]/90 text-amber-200/90 border-[#3f3427] hover:border-pink-500/50'
+            }`}
+          >
+            <Sparkles className="w-2.5 h-2.5 text-pink-300" />
+            <span>{demoCpPairs[0] ? 'Wire Light: ON 💕' : 'Test Wire Light'}</span>
+          </button>
+        </div>
 
-            return (
-              <div
-                key={seat.seatIndex}
-                className="flex flex-col items-center justify-center cursor-pointer group"
-                onClick={() => {
-                  if (seat.userId || isModerator) {
-                    setSelectedSeatForAction(seat);
-                  } else {
-                    if (!seat.isLocked) {
-                      takeSeat(seat.seatIndex);
-                    }
-                  }
-                }}
-              >
-                {/* Seat Avatar or Empty Circle */}
-                <div className="relative flex items-center justify-center">
-                  {/* Speaking Wave Ripple */}
-                  {effectiveSpeaking && !seat.isMuted && (
-                    <div className="absolute -inset-2 rounded-full border-2 border-violet-400/80 animate-ping pointer-events-none" />
-                  )}
-
-                  {seat.user ? (
-                    <motion.div
-                      key={`user-${seat.user.id}`}
-                      initial={{ opacity: 0, y: 15, scale: 0.85 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                      className="relative"
-                    >
-                      <img
-                        src={seat.user.avatar}
-                        alt={seat.user.displayName}
-                        className={`${avatarSizeClass} rounded-full object-cover shadow-lg transition-transform group-hover:scale-105 ${
-                          effectiveSpeaking && !seat.isMuted
-                            ? 'ring-4 ring-violet-500 shadow-violet-500/50'
-                            : 'ring-2 ring-[#2B2B3D]'
-                        }`}
-                      />
-
-                      {/* VIP Badge */}
-                      {seat.user.vipTier !== 'vip_0' && (
-                        <span className="absolute -top-1.5 -right-1 px-1 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-[8px] font-black text-white shadow-xs">
-                          VIP
-                        </span>
-                      )}
-
-                      {/* Verified Seller Pin */}
-                      {(seat.user.role === 'seller' || seat.user.role === 'agent' || seat.user.isSeller) && (
-                        <span className="absolute -top-1.5 -left-1 px-1 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[7px] font-black tracking-tight shadow-md flex items-center gap-0.5">
-                          <span>✓</span>
-                          <span>SELLER</span>
-                        </span>
-                      )}
-
-                      {/* Mic Status Pill */}
-                      <div
-                        className={`absolute -bottom-1 -right-1 p-1 rounded-full shadow-md text-white text-[10px] ${
-                          seat.isMuted ? 'bg-rose-600' : 'bg-emerald-500'
-                        }`}
-                      >
-                        {seat.isMuted ? <MicOff className="w-2.5 h-2.5" /> : <Mic className="w-2.5 h-2.5" />}
-                      </div>
-
-                      {isHostSeat && (
-                        <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-1.5 py-0.2 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-[9px] font-black tracking-tight">
-                          HOST
-                        </span>
-                      )}
-                    </motion.div>
-                  ) : (
-                    <div
-                      className={`${avatarSizeClass} rounded-full border-2 border-dashed flex flex-col items-center justify-center transition-all ${
-                        seat.isLocked
-                          ? 'border-[#232332] bg-[#0B0B0F]/60 text-slate-500'
-                          : 'border-white/20 bg-[#121217]/50 hover:border-violet-500 hover:bg-[#1A1A24] text-slate-300'
-                      }`}
-                    >
-                      {seat.isLocked ? (
-                        <Lock className={`${isManySeats ? 'w-3 h-3' : 'w-4 h-4'} text-slate-500`} />
-                      ) : (
-                        <>
-                          <Mic className={`${isManySeats ? 'w-3 h-3' : 'w-4 h-4'} opacity-60`} />
-                          {!isManySeats && <span className="text-[9px] font-bold mt-0.5">{seat.seatIndex + 1}</span>}
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Seat Label */}
-                <span className={`mt-1.5 ${labelTextClass} font-semibold text-slate-200 truncate ${isManySeats ? 'max-w-[40px]' : 'max-w-[70px]'} text-center`}>
-                  {seat.user ? seat.user.displayName : `Seat ${seat.seatIndex + 1}`}
-                </span>
-              </div>
-            );
-          })}
+        {/* 2-Column Couple Capsules */}
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2 max-w-sm mx-auto w-full pb-4 pt-0.5">
+          {seatPairs.map((pair) => (
+            <CoupleMicSeatPair
+              key={`pair-${pair.pairIndex}`}
+              pairIndex={pair.pairIndex}
+              seatLeft={pair.seatLeft}
+              seatRight={pair.seatRight}
+              currentUser={currentUser}
+              isRealMicActive={isRealMicActive}
+              localMicVolume={localMicVolume}
+              isModerator={isModerator}
+              isSimulatedCp={demoCpPairs[pair.pairIndex] || false}
+              onSelectSeatForAction={(seat) => setSelectedSeatForAction(seat)}
+              onTakeSeat={(seatIndex) => takeSeat(seatIndex)}
+            />
+          ))}
         </div>
       </div>
 
@@ -406,7 +468,7 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
                 </button>
               </div>
 
-              {selectedSeatForAction.user && (
+              {selectedSeatForAction.user ? (
                 <div className="flex flex-col items-center mb-3">
                   <div className="relative mb-2">
                     <img
@@ -414,16 +476,82 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
                       alt={selectedSeatForAction.user.displayName}
                       className="w-16 h-16 rounded-full object-cover ring-2 ring-violet-500"
                     />
+                    <span className="absolute -bottom-1 -right-1 bg-violet-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow-xs">
+                      NO. {selectedSeatForAction.seatIndex + 1}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1.5 justify-center flex-wrap">
                     <h4 className="font-bold text-sm text-white">{selectedSeatForAction.user.displayName}</h4>
                     <SellerBadge user={selectedSeatForAction.user} size="xs" />
                   </div>
-                  <p className="text-xs text-slate-400">{selectedSeatForAction.user.bio || 'Voice enthusiast'}</p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="text-[10px] font-mono text-slate-300 bg-[#1A1A24] px-2 py-0.5 rounded-full border border-slate-700/50">
+                      UID: {selectedSeatForAction.user.numericId || selectedSeatForAction.user.id}
+                    </span>
+                    <span className="text-[10px] text-amber-400 font-bold bg-amber-950/40 border border-amber-800/40 px-1.5 py-0.5 rounded-full">
+                      Lv.{selectedSeatForAction.user.level}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1 max-w-[220px] truncate">{selectedSeatForAction.user.bio || 'Voice room enthusiast'}</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center mb-3">
+                  <div className="w-14 h-14 rounded-full bg-[#251d18] border border-[#3e3227] flex items-center justify-center text-amber-200/90 mb-2 shadow-inner">
+                    <span className="font-bold text-sm">NO. {selectedSeatForAction.seatIndex + 1}</span>
+                  </div>
+                  <h4 className="font-bold text-sm text-white">Seat NO. {selectedSeatForAction.seatIndex + 1} (Vacant)</h4>
+                  <p className="text-xs text-slate-400 mt-0.5">Microphone seat is currently open</p>
                 </div>
               )}
 
               <div className="grid grid-cols-2 gap-2 mt-3 text-xs font-bold">
+                {/* Empty Seat Options */}
+                {!selectedSeatForAction.userId && (
+                  <>
+                    {!selectedSeatForAction.isLocked && (
+                      <button
+                        onClick={() => {
+                          takeSeat(selectedSeatForAction.seatIndex);
+                          setSelectedSeatForAction(null);
+                        }}
+                        className="p-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white col-span-2 shadow-md hover:brightness-110 flex items-center justify-center gap-1.5"
+                      >
+                        <Mic className="w-4 h-4" />
+                        <span>
+                          {isOnSeat
+                            ? `Switch to Seat NO. ${selectedSeatForAction.seatIndex + 1}`
+                            : `Sit in Seat NO. ${selectedSeatForAction.seatIndex + 1}`}
+                        </span>
+                      </button>
+                    )}
+
+                    {/* Seat CP Partner on this vacant seat */}
+                    <button
+                      onClick={() => {
+                        handleSeatCpPartner(selectedSeatForAction.seatIndex);
+                        setSelectedSeatForAction(null);
+                      }}
+                      className="p-2.5 rounded-xl bg-gradient-to-r from-pink-600 via-rose-600 to-amber-600 text-white flex items-center justify-center gap-1.5 col-span-2 shadow-md hover:brightness-110"
+                    >
+                      <Heart className="w-4 h-4 fill-white" />
+                      <span>Seat My CP Partner ({allUsers.find((u) => u.id === currentUser.cpPartnerId)?.displayName || 'Luna Valente'}) Here 💕</span>
+                    </button>
+                  </>
+                )}
+
+                {/* CP Demo Wire Light Toggle */}
+                <button
+                  onClick={() => {
+                    const pIdx = Math.floor(selectedSeatForAction.seatIndex / 2);
+                    toggleDemoCpPair(pIdx);
+                    setSelectedSeatForAction(null);
+                  }}
+                  className="p-2 rounded-xl bg-[#221a18] hover:bg-[#2e2320] text-amber-200 border border-[#48372b] col-span-2 flex items-center justify-center gap-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-pink-400" />
+                  <span>Toggle Wire Light (Pair {Math.floor(selectedSeatForAction.seatIndex / 2) + 1})</span>
+                </button>
+
                 {!selectedSeatForAction.userId && isModerator && (
                   <button
                     onClick={() => {
@@ -468,24 +596,32 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
                   </button>
                 )}
 
-                {selectedSeatForAction.userId !== currentUser.id && (
-                  <button
-                    onClick={() => {
-                      if (selectedSeatForAction.user) {
-                        const success = bindCpPartner(selectedSeatForAction.user.id, 500, 'ring_1');
-                        if (success) {
-                           alert(`Congratulations! You are now CP with ${selectedSeatForAction.user.displayName}`);
-                        } else {
-                           alert('Not enough coins to form CP! (Costs 500 coins)');
+                {/* CP Partner Active or Propose */}
+                {selectedSeatForAction.user && selectedSeatForAction.userId !== currentUser.id && (
+                  selectedSeatForAction.user.id === currentUser.cpPartnerId || selectedSeatForAction.user.cpPartnerId === currentUser.id ? (
+                    <div className="p-2.5 rounded-xl bg-gradient-to-r from-pink-950/80 to-rose-950/80 border border-pink-500/70 text-pink-200 col-span-2 flex items-center justify-center gap-1.5 shadow-[0_0_10px_rgba(244,63,94,0.3)]">
+                      <Heart className="w-4 h-4 fill-pink-500 text-pink-300" />
+                      <span>CP Partner Connected 💕 (Wire Light Active)</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        if (selectedSeatForAction.user) {
+                          const success = bindCpPartner(selectedSeatForAction.user.id, 500, 'ring_1');
+                          if (success) {
+                             alert(`Congratulations! You are now CP with ${selectedSeatForAction.user.displayName}`);
+                          } else {
+                             alert('Not enough coins to form CP! (Costs 500 coins)');
+                          }
+                          setSelectedSeatForAction(null);
                         }
-                        setSelectedSeatForAction(null);
-                      }
-                    }}
-                    className="p-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 text-white flex items-center justify-center gap-1.5 col-span-2 shadow-md hover:brightness-110"
-                  >
-                    <Heart className="w-4 h-4" />
-                    <span>Propose CP (500 🪙)</span>
-                  </button>
+                      }}
+                      className="p-2.5 rounded-xl bg-gradient-to-r from-rose-500 to-pink-500 text-white flex items-center justify-center gap-1.5 col-span-2 shadow-md hover:brightness-110"
+                    >
+                      <Heart className="w-4 h-4" />
+                      <span>Propose CP (500 🪙)</span>
+                    </button>
+                  )
                 )}
 
                 {selectedSeatForAction.userId === currentUser.id && (
@@ -623,17 +759,33 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
             );
           }
 
+          const bubbleSkin =
+            msg.sender.equippedBubble === 'bubble_neon'
+              ? 'bg-violet-950/80 border-violet-500/50 text-violet-100'
+              : msg.sender.equippedBubble === 'bubble_gold'
+              ? 'bg-amber-950/80 border-amber-500/50 text-amber-100'
+              : msg.sender.equippedBubble === 'bubble_sakura'
+              ? 'bg-pink-950/80 border-pink-500/50 text-pink-100'
+              : msg.sender.equippedBubble === 'bubble_cyber'
+              ? 'bg-cyan-950/80 border-cyan-500/50 text-cyan-100'
+              : msg.sender.equippedBubble === 'bubble_dragon'
+              ? 'bg-red-950/80 border-red-500/50 text-red-100'
+              : 'bg-[#0B0B0F]/60 border-[#232332]/40 text-slate-100';
+
           return (
-            <div key={msg.id} className="flex items-start gap-1.5 text-xs bg-[#0B0B0F]/60 px-2.5 py-1 rounded-xl self-start max-w-[85%] backdrop-blur-2xs border border-[#232332]/40">
+            <div
+              key={msg.id}
+              className={`flex items-start gap-1.5 text-xs px-2.5 py-1 rounded-xl self-start max-w-[85%] backdrop-blur-2xs border ${bubbleSkin}`}
+            >
               <span className="font-bold text-violet-300 shrink-0">{msg.sender.displayName}:</span>
-              <span className="text-slate-100 break-words">{msg.message}</span>
+              <span className="break-words">{msg.message}</span>
             </div>
           );
         })}
       </div>
 
-      {/* Floating Gift Combo Button */}
-      {activeCombo && (
+      {/* Floating Gift Combo Button (shown in voice room when gift store modal is not active) */}
+      {activeCombo && !isGiftModalOpen && (
         <div className="absolute bottom-16 right-4 z-40">
           <GiftComboButton
             combo={activeCombo}
@@ -701,6 +853,7 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
 
         {/* Gift Button */}
         <button
+          id="voice-room-gift-button"
           onClick={() => onOpenGiftModal(null)}
           className="p-2 rounded-full bg-gradient-to-r from-violet-600 via-fuchsia-600 to-amber-500 text-white shadow-lg shadow-violet-500/25 active:scale-95 transition-transform"
           title="Send Gifts"
@@ -719,10 +872,67 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
       </div>
       {/* ROOM SETTINGS MODAL */}
       {showSettings && (
-        <RoomSettingsModal room={activeRoom} onClose={() => setShowSettings(false)} />
+        <RoomSettingsModal
+          room={activeRoom}
+          initialView={settingsInitialView}
+          onClose={() => {
+            setShowSettings(false);
+            setSettingsInitialView('main');
+          }}
+        />
       )}
       <ShareRoomModal isOpen={showShareModal} onClose={() => setShowShareModal(false)} room={activeRoom} />
       <RoomAudienceModal isOpen={showAudienceModal} onClose={() => setShowAudienceModal(false)} />
+      {showLeaderboard && <RoomLeaderboardModal roomId={activeRoom.id} onClose={() => setShowLeaderboard(false)} />}
+
+      {/* Toast for ID Copied */}
+      {copiedIdToast && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-50 px-3.5 py-1.5 rounded-full bg-[#091528]/95 border border-cyan-500/50 text-[#00e5ff] text-xs font-semibold shadow-xl backdrop-blur-md animate-fade-in flex items-center gap-1.5">
+          <span>✓</span>
+          <span>Room ID Copied to clipboard!</span>
+        </div>
+      )}
+
+      {/* Exit / Minimize Options Dialog */}
+      {showExitDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            className="w-full max-w-xs p-5 rounded-3xl bg-[#091528] border border-[#143054] shadow-2xl text-center space-y-3 text-white"
+          >
+            <h3 className="font-bold text-sm text-white">Leave or Minimize?</h3>
+            <p className="text-xs text-slate-400">Keep listening in the background or exit the voice room?</p>
+            <div className="space-y-2 pt-2">
+              <button
+                onClick={() => {
+                  setShowExitDialog(false);
+                  minimizeRoom(true);
+                }}
+                className="w-full py-2.5 rounded-2xl bg-cyan-600/20 border border-cyan-500/50 text-[#00e5ff] font-bold text-xs hover:bg-cyan-600/30 transition-colors"
+              >
+                Minimize Window (Keep Listening)
+              </button>
+              <button
+                onClick={() => {
+                  setShowExitDialog(false);
+                  leaveRoom();
+                }}
+                className="w-full py-2.5 rounded-2xl bg-rose-600/20 border border-rose-500/50 text-rose-300 font-bold text-xs hover:bg-rose-600/30 transition-colors"
+              >
+                Exit Room
+              </button>
+              <button
+                onClick={() => setShowExitDialog(false)}
+                className="w-full py-2 rounded-2xl bg-[#142034] text-slate-400 text-xs font-medium hover:bg-[#1b2b46] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

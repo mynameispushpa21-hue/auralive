@@ -13,6 +13,7 @@ import {
   GiftComboState,
   NotificationItem,
   HostApplication,
+  AgencyApplication,
   WithdrawalRequest,
   WithdrawalStatus,
   AbuseReport,
@@ -32,10 +33,18 @@ import {
   LuckyBackupMilestone,
   LuckyBackupProgress,
   LuckyBackupTransaction,
+  StoreItem,
+  StoreItemCategory,
+  ItemDuration,
+  PaymentGatewayConfig,
+  GatewayWebhookLog,
+  GameItem,
+  GameBetHistoryItem,
+  GameJackpotWinner,
+  GameMultiplierSegment,
 } from '../types';
 import {
   INITIAL_CURRENT_USER,
-  INITIAL_USERS,
   INITIAL_ROOMS,
   INITIAL_GIFTS,
   INITIAL_COIN_PACKAGES,
@@ -46,6 +55,7 @@ import {
   INITIAL_CONVERSATIONS,
   INITIAL_NOTIFICATIONS,
   INITIAL_HOST_APPLICATIONS,
+  INITIAL_AGENCY_APPLICATIONS,
   INITIAL_WITHDRAWAL_REQUESTS,
   INITIAL_ABUSE_REPORTS,
   INITIAL_FRAUD_EVENTS,
@@ -55,11 +65,22 @@ import {
   INITIAL_SELLER_TRANSACTIONS,
   INITIAL_BUYER_REQUESTS,
 } from '../data/mockInitialData';
+import { INITIAL_PAYMENT_GATEWAYS, INITIAL_WEBHOOK_LOGS } from '../data/paymentGatewaysData';
+import { initialGames, initialBetHistory, initialJackpotWinners } from '../data/mockGamesData';
+import { STORE_ITEMS } from '../data/storeItemsData';
+import { ROOM_THEMES, getThemeById } from '../data/roomThemesData';
 import { audioEngine } from './audioEngine';
 import confetti from 'canvas-confetti';
+import {
+  syncProfileToSupabase,
+  syncRoomToSupabase,
+  syncTransactionToSupabase,
+  syncGiftLogToSupabase,
+} from './supabase';
 
 interface StateContextType {
   currentUser: UserProfile;
+  isGuest: boolean;
   allUsers: UserProfile[];
   rooms: VoiceRoom[];
   activeRoom: VoiceRoom | null;
@@ -75,6 +96,7 @@ interface StateContextType {
   activeConversation: Conversation | null;
   notifications: NotificationItem[];
   hostApplications: HostApplication[];
+  agencyApplications: AgencyApplication[];
   withdrawals: WithdrawalRequest[];
   reports: AbuseReport[];
   fraudEvents: FraudLogEvent[];
@@ -125,6 +147,8 @@ interface StateContextType {
   switchDemoUser: (userId: string) => void;
   updateUserProfile: (updates: Partial<UserProfile>) => void;
   updateCurrentUserProfile: (updates: Partial<UserProfile>) => void;
+  followedUserIds: string[];
+  isUserFollowed: (userId: string) => boolean;
   toggleFollowUser: (targetUserId: string) => void;
   bindCpPartner: (targetUserId: string, cost: number, ringId: string) => boolean;
   removeCpPartner: () => void;
@@ -134,7 +158,8 @@ interface StateContextType {
   joinRoom: (roomId: string) => void;
   leaveRoom: () => void;
   minimizeRoom: (minimized: boolean) => void;
-  takeSeat: (seatIndex: number) => boolean;
+  takeSeat: (seatIndex: number, targetUserId?: string) => boolean;
+  moveSeat: (fromIndex: number, toIndex: number) => boolean;
   leaveSeat: (seatIndex?: number) => void;
   toggleMuteSeat: (seatIndex?: number) => void;
   hostLockSeat: (roomId: string, seatIndex: number) => void;
@@ -149,6 +174,12 @@ interface StateContextType {
   sendRoomChatMessage: (roomId: string, text: string) => void;
   playRoomDJEffect: (type: 'airhorn' | 'applause' | 'fanfare' | 'cheer' | 'chime' | 'engine') => void;
 
+  // Room Themes & Customization
+  unlockedRoomThemeIds: string[];
+  isRoomThemeUnlocked: (themeId: string) => boolean;
+  unlockRoomTheme: (themeId: string) => { success: boolean; message: string };
+  hostChangeRoomTheme: (roomId: string, themeId: string) => { success: boolean; message: string };
+
   // Financial & Gifts
   sendGift: (giftId: string, receiverId: string, count?: number, roomId?: string) => { success: boolean; message: string };
   triggerComboGift: () => { success: boolean; message: string; count: number };
@@ -157,21 +188,45 @@ interface StateContextType {
   dismissGiftAnimation: () => void;
   purchaseCoinPackage: (packageId: string, paymentMethod: string) => Promise<{ success: boolean; message: string }>;
   subscribeVIP: (vipId: string) => { success: boolean; message: string };
+  storeItems: StoreItem[];
+  buyStoreItem: (itemId: string, duration: ItemDuration, autoEquip?: boolean) => { success: boolean; message: string };
+  equipStoreItem: (category: StoreItemCategory, itemId: string, name?: string) => void;
   requestHostWithdrawal: (diamondsAmount: number, method: string, accountDetails: any) => { success: boolean; message: string };
   applyForHost: (applicationData: { fullName: string; country: string; phone: string; experience: string; language: string; introduction: string }) => { success: boolean; message: string };
 
   // Reseller / Coin Seller Operations
   transferCoinsAsSeller: (payload: SellerTransferPayload) => Promise<{ success: boolean; message: string; transaction?: SellerTransaction }>;
+  updateBuyerRequestStatus: (requestId: string, status: "PENDING" | "COMPLETED" | "REJECTED" | "FULFILLED" | "CANCELLED") => void;
   submitBuyerCoinRequest: (request: Omit<BuyerCoinRequest, 'id' | 'createdAt' | 'status'>) => Promise<{ success: boolean; message: string }>;
   updateSellerProfileSettings: (sellerId: string, updates: Partial<SellerProfile>) => void;
   updateHostAgencySettings: (agencyId: string, updates: Partial<HostAgencyProfile>) => void;
   adminPromoteToHostAgency: (userId: string, agencyName: string, commissionRate: number) => void;
+  submitAgencyApplication: (payload: {
+    agencyName: string;
+    country: string;
+    phone: string;
+    address: string;
+    idCardFront: string;
+    idCardBack: string;
+    commissionRate?: number;
+  }) => Promise<{ success: boolean; message: string }>;
+  adminApproveAgencyApplication: (applicationId: string, commissionRate?: number, notes?: string) => void;
+  adminRejectAgencyApplication: (applicationId: string, notes?: string) => void;
+  createHostAgency: (agencyName: string, extraDetails?: {
+    country?: string;
+    phone?: string;
+    address?: string;
+    idCardFront?: string;
+    idCardBack?: string;
+  }) => Promise<{ success: boolean; message: string }>;
+  joinHostAgency: (agencyId: string) => Promise<{ success: boolean; message: string }>;
+  leaveHostAgency: () => Promise<{ success: boolean; message: string }>;
   applyForSellerRole: (applicationData: { agencyName: string; contactWhatsapp: string; contactTelegram?: string; paymentMethods: string; initialDepositUsd: number }) => Promise<{ success: boolean; message: string }>;
   quickUpgradeToDemoSeller: (userId?: string) => void;
   adminToggleSellerStatus: (userId: string, isApproved: boolean) => void;
 
   // Missions & Events
-  claimMissionReward: (missionId: string) => void;
+  claimMissionReward: (missionId: string) => { success: boolean; message: string };
 
   // Messaging & Notifications
   setActiveConversation: (conversation: Conversation | null) => void;
@@ -181,6 +236,7 @@ interface StateContextType {
   markConversationAsRead: (convId: string) => void;
   markNotificationAsRead: (notificationId: string) => void;
   markAllNotificationsRead: () => void;
+  markAllNotificationsAsRead: () => void;
 
   // Admin Actions & Stats
   adminStats: AdminStats;
@@ -199,6 +255,8 @@ interface StateContextType {
   adminApproveWithdrawal: (withdrawalId: string, txHash?: string) => void;
   adminRejectWithdrawal: (withdrawalId: string, reason?: string) => void;
   adminCloseRoom: (roomId: string, reason?: string) => void;
+  adminMuteHostInRoom: (roomId: string, hostUserId: string, muteState?: boolean) => void;
+  adminKickHostFromRoom: (roomId: string, hostUserId: string, reason?: string, closeRoomIfMainHost?: boolean) => void;
   adminSaveGift: (gift: VirtualGift) => void;
   adminAddGift: (gift: Omit<VirtualGift, 'id'> | Partial<VirtualGift>) => void;
   adminUpdateGift: (giftId: string, updates: Partial<VirtualGift>) => void;
@@ -209,6 +267,47 @@ interface StateContextType {
   adminAddLuckyBackupMilestone: (milestoneData: Partial<LuckyBackupMilestone>) => void;
   adminUpdateLuckyBackupMilestone: (milestoneId: string, updates: Partial<LuckyBackupMilestone>) => void;
   adminDeleteLuckyBackupMilestone: (milestoneId: string) => void;
+
+  // Store Items Management
+  adminAddStoreItem: (item: Omit<StoreItem, 'id'> | Partial<StoreItem>) => void;
+  adminUpdateStoreItem: (itemId: string, updates: Partial<StoreItem>) => void;
+  adminDeleteStoreItem: (itemId: string) => void;
+  adminToggleStoreItemStatus: (itemId: string, status?: 'active' | 'inactive') => void;
+
+  // Payment Gateways & Processing
+  paymentGateways: PaymentGatewayConfig[];
+  gatewayWebhookLogs: GatewayWebhookLog[];
+  adminToggleGateway: (id: string, isEnabled: boolean) => void;
+  adminUpdateGateway: (id: string, updates: Partial<PaymentGatewayConfig>) => void;
+  adminTestGatewayPing: (id: string) => Promise<{ success: boolean; latencyMs: number; message: string }>;
+  adminSimulateGatewayTransaction: (gatewayId: string, amountUsd: number) => Promise<{ success: boolean; log: GatewayWebhookLog }>;
+  adminAddPaymentGateway: (gateway: PaymentGatewayConfig) => void;
+  adminDeletePaymentGateway: (id: string) => void;
+
+  // Games and Gaming Operations
+  games: GameItem[];
+  gameHistory: GameBetHistoryItem[];
+  recentJackpotWinners: GameJackpotWinner[];
+  playGameBet: (
+    gameId: string,
+    betAmount: number,
+    betPayload?: any
+  ) => Promise<{
+    success: boolean;
+    isWin: boolean;
+    payoutAmount: number;
+    multiplier: number;
+    resultOutcome: any;
+    isJackpot?: boolean;
+    message: string;
+  }>;
+  adminAddGame: (
+    gameData: Omit<GameItem, 'id' | 'createdAt' | 'updatedAt' | 'totalBetsCount' | 'totalWageredCoins' | 'totalPayoutCoins' | 'totalPlayers'>
+  ) => void;
+  adminUpdateGame: (gameId: string, updates: Partial<GameItem>) => void;
+  adminToggleGameStatus: (gameId: string, status: 'active' | 'maintenance' | 'disabled') => void;
+  adminDeleteGame: (gameId: string) => void;
+  adminAdjustJackpot: (gameId: string, newPoolAmount: number) => void;
 }
 
 const StateContext = createContext<StateContextType | null>(null);
@@ -220,29 +319,33 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const stored = localStorage.getItem('auravoice_custom_users');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const merged = [...parsed];
-          INITIAL_USERS.forEach((u) => {
-            if (!merged.some((m) => m.id === u.id)) {
-              merged.push(u);
-            }
-          });
-          return merged;
+        if (Array.isArray(parsed)) {
+          return parsed;
         }
       }
     } catch {
       // ignore
     }
-    return INITIAL_USERS;
+    return [];
   });
 
   // Current User: check localStorage, otherwise default to INITIAL_CURRENT_USER
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
     try {
+      const savedUser = localStorage.getItem('auravoice_current_user');
+      if (savedUser) {
+        return JSON.parse(savedUser);
+      }
       const savedUserId = localStorage.getItem('auravoice_auth_user_id');
       if (savedUserId) {
-        const found = INITIAL_USERS.find((u) => u.id === savedUserId);
-        if (found) return found;
+        const stored = localStorage.getItem('auravoice_custom_users');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            const found = parsed.find((u: UserProfile) => u.id === savedUserId);
+            if (found) return found;
+          }
+        }
       }
     } catch {
       // ignore
@@ -263,7 +366,28 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'signup' | 'forgot_password'>('login');
 
-  const [rooms, setRooms] = useState<VoiceRoom[]>(INITIAL_ROOMS);
+  const [rooms, setRooms] = useState<VoiceRoom[]>(() => {
+    return INITIAL_ROOMS.map(room => {
+      const seatCount = 50; // Override to always have 50 seats
+      const expandedSeats = [...room.seats];
+      while (expandedSeats.length < seatCount) {
+        expandedSeats.push({
+          seatIndex: expandedSeats.length,
+          userId: null,
+          user: null,
+          isMuted: false,
+          isLocked: false,
+          isSpeaking: false,
+          volumeLevel: 0
+        });
+      }
+      return {
+        ...room,
+        seatCount,
+        seats: expandedSeats
+      };
+    });
+  });
   const [activeRoom, setActiveRoom] = useState<VoiceRoom | null>(null);
   const [isRoomMinimized, setIsRoomMinimized] = useState<boolean>(false);
   const [gifts, setGifts] = useState<VirtualGift[]>(INITIAL_GIFTS);
@@ -276,6 +400,22 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
   const [hostApplications, setHostApplications] = useState<HostApplication[]>(INITIAL_HOST_APPLICATIONS);
+  const [agencyApplications, setAgencyApplications] = useState<AgencyApplication[]>(() => {
+    try {
+      const stored = localStorage.getItem('auravoice_agency_applications');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return INITIAL_AGENCY_APPLICATIONS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('auravoice_agency_applications', JSON.stringify(agencyApplications));
+    } catch {}
+  }, [agencyApplications]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>(INITIAL_WITHDRAWAL_REQUESTS);
   const [reports, setReports] = useState<AbuseReport[]>(INITIAL_ABUSE_REPORTS);
   const [fraudEvents, setFraudEvents] = useState<FraudLogEvent[]>(INITIAL_FRAUD_EVENTS);
@@ -326,6 +466,87 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [luckyBackupProgresses, setLuckyBackupProgresses] = useState<LuckyBackupProgress[]>([]);
   const [luckyBackupTransactions, setLuckyBackupTransactions] = useState<LuckyBackupTransaction[]>([]);
 
+  // Payment Gateways & Webhook Logs state
+  const [paymentGateways, setPaymentGateways] = useState<PaymentGatewayConfig[]>(() => {
+    try {
+      const stored = localStorage.getItem('auravoice_payment_gateways');
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return INITIAL_PAYMENT_GATEWAYS;
+  });
+
+  const [gatewayWebhookLogs, setGatewayWebhookLogs] = useState<GatewayWebhookLog[]>(() => {
+    try {
+      const stored = localStorage.getItem('auravoice_gateway_logs');
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return INITIAL_WEBHOOK_LOGS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('auravoice_payment_gateways', JSON.stringify(paymentGateways));
+    } catch {}
+  }, [paymentGateways]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('auravoice_gateway_logs', JSON.stringify(gatewayWebhookLogs));
+    } catch {}
+  }, [gatewayWebhookLogs]);
+
+  // Games and Gaming State
+  const [games, setGames] = useState<GameItem[]>(() => {
+    try {
+      const stored = localStorage.getItem('auravoice_games');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return initialGames;
+  });
+
+  const [gameHistory, setGameHistory] = useState<GameBetHistoryItem[]>(() => {
+    try {
+      const stored = localStorage.getItem('auravoice_game_history');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return initialBetHistory;
+  });
+
+  const [recentJackpotWinners, setRecentJackpotWinners] = useState<GameJackpotWinner[]>(() => {
+    try {
+      const stored = localStorage.getItem('auravoice_jackpot_winners');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return initialJackpotWinners;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('auravoice_games', JSON.stringify(games));
+    } catch {}
+  }, [games]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('auravoice_game_history', JSON.stringify(gameHistory));
+    } catch {}
+  }, [gameHistory]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('auravoice_jackpot_winners', JSON.stringify(recentJackpotWinners));
+    } catch {}
+  }, [recentJackpotWinners]);
+
   // 1-second display gift animation overlay state
   const [activeGiftAnimation, setActiveGiftAnimation] = useState<{
     gift: VirtualGift;
@@ -340,97 +561,10 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [comboTimerId, setComboTimerId] = useState<any>(null);
 
   // Direct Messages state
-  const [directMessages, setDirectMessages] = useState<Record<string, DirectMessage[]>>({
-    conv_01: [
-      {
-        id: 'msg_01_1',
-        conversationId: 'conv_01',
-        senderId: 'usr_002',
-        receiverId: 'usr_me_001',
-        message: 'Hey Alex! Loved your DJ synth set earlier 🔥 Are you co-hosting the acoustic session tonight?',
-        type: 'text',
-        isRead: true,
-        createdAt: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
-      },
-      {
-        id: 'msg_01_2',
-        conversationId: 'conv_01',
-        senderId: 'usr_me_001',
-        receiverId: 'usr_002',
-        message: 'Thanks Luna! Yes definitely, tuning my mixer right now. Will join your stage around 9 PM 🎧',
-        type: 'text',
-        isRead: true,
-        createdAt: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
-      },
-      {
-        id: 'msg_01_3',
-        conversationId: 'conv_01',
-        senderId: 'usr_002',
-        receiverId: 'usr_me_001',
-        message: 'Awesome! Here is the acoustic guitar chord progression preview 🎵',
-        type: 'voice',
-        voiceDurationSec: 12,
-        isRead: false,
-        createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-      },
-    ],
-    conv_02: [
-      {
-        id: 'msg_02_1',
-        conversationId: 'conv_02',
-        senderId: 'usr_004',
-        receiverId: 'usr_me_001',
-        message: 'Sent you a Golden Microphone gift in room #472910! Keep making great music 🎵',
-        type: 'gift',
-        giftData: {
-          giftId: 'gift_07',
-          giftName: 'Golden Mic',
-          giftIcon: '🎤',
-          coinPrice: 1500,
-          count: 1,
-        },
-        isRead: true,
-        createdAt: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-      },
-      {
-        id: 'msg_02_2',
-        conversationId: 'conv_02',
-        senderId: 'usr_me_001',
-        receiverId: 'usr_004',
-        message: 'Thank you so much Zara! That microphone gave us huge hot score boost on the leaderboards 👑✨',
-        type: 'text',
-        isRead: true,
-        createdAt: new Date(Date.now() - 1000 * 60 * 90).toISOString(),
-      },
-    ],
-    conv_03: [
-      {
-        id: 'msg_03_1',
-        conversationId: 'conv_03',
-        senderId: 'usr_003',
-        receiverId: 'usr_me_001',
-        message: 'Hey Alex, check out this 14-second synth loop sample for our weekend room collab 🎹',
-        type: 'voice',
-        voiceDurationSec: 14,
-        isRead: true,
-        createdAt: new Date(Date.now() - 1000 * 60 * 240).toISOString(),
-      },
-    ],
-  });
+  const [directMessages, setDirectMessages] = useState<Record<string, DirectMessage[]>>({});
 
   // Initial chat messages for rooms
-  const [roomChatMessages, setRoomChatMessages] = useState<Record<string, RoomChatMessage[]>>({
-    room_101: [
-      { id: 'rc_01', roomId: 'room_101', senderId: 'usr_002', sender: INITIAL_USERS[1], message: 'Welcome to Acoustic Lounge! Type !song to request 🎵', type: 'system', timestamp: '04:10' },
-      { id: 'rc_02', roomId: 'room_101', senderId: 'usr_004', sender: INITIAL_USERS[3], message: 'Luna your guitar intro was incredible! 😍', type: 'text', timestamp: '04:12' },
-      { id: 'rc_03', roomId: 'room_101', senderId: 'usr_003', sender: INITIAL_USERS[2], message: 'Vibing in the background, clean audio quality 🎧', type: 'text', timestamp: '04:14' }
-    ],
-    room_102: [
-      { id: 'rc_10', roomId: 'room_102', senderId: 'usr_me_001', sender: INITIAL_CURRENT_USER, message: 'Welcome to the Synthwave Lounge! Drop your requests below 🎛️', type: 'system', timestamp: '04:00' },
-      { id: 'rc_11', roomId: 'room_102', senderId: 'usr_006', sender: INITIAL_USERS[5], message: 'This bassline is insane Alex! 🔥', type: 'text', timestamp: '04:05' },
-      { id: 'rc_12', roomId: 'room_102', senderId: 'usr_004', sender: INITIAL_USERS[3], message: 'Cheering for the DJ! 👑', type: 'text', timestamp: '04:15' }
-    ]
-  });
+  const [roomChatMessages, setRoomChatMessages] = useState<Record<string, RoomChatMessage[]>>({});
 
   // Authentication Actions
   const openAuthModal = (mode: 'login' | 'signup' | 'forgot_password' = 'login') => {
@@ -577,11 +711,15 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setIsAuthModalOpen(false);
 
     try {
-      localStorage.setItem('auravoice_custom_users', JSON.stringify(updatedUsers.filter((u) => !INITIAL_USERS.some((iu) => iu.id === u.id))));
+      localStorage.setItem('auravoice_custom_users', JSON.stringify(updatedUsers));
+      localStorage.setItem('auravoice_current_user', JSON.stringify(newUser));
       localStorage.setItem('auravoice_auth_user_id', newUser.id);
     } catch {
       // ignore
     }
+
+    // Sync user with Supabase cloud database
+    syncProfileToSupabase(newUser);
 
     audioEngine.playSoundEffect('fanfare');
     confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
@@ -614,12 +752,56 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       phone: 'Phone SMS',
     };
 
-    const targetUser = allUsers[0] || INITIAL_CURRENT_USER;
+    let targetUser = allUsers.find((u) => u.email === `${provider}_user@auravoice.live`) || allUsers[0];
+    if (!targetUser) {
+      const generatedId = `usr_${Date.now()}`;
+      const generatedNum = String(Math.floor(100000 + Math.random() * 900000));
+      targetUser = {
+        id: generatedId,
+        numericId: generatedNum,
+        username: `${provider}_user_${generatedNum.substring(2)}`,
+        displayName: `${providerNames[provider] || provider} User`,
+        email: `${provider}_user@auravoice.live`,
+        phone: '',
+        bio: 'Hello! I am a new member on AuraVoice.',
+        country: 'Global',
+        countryFlag: '🌐',
+        language: 'English',
+        gender: 'other',
+        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+        role: 'user',
+        level: 1,
+        xp: 0,
+        xpToNextLevel: 1000,
+        vipTier: 'vip_0',
+        coins: 1000,
+        diamonds: 0,
+        followersCount: 0,
+        followingCount: 0,
+        visitorsCount: 0,
+        isHost: false,
+        isBanned: false,
+        isMuted: false,
+        fraudScore: 0,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString(),
+      };
+      const updated = [targetUser, ...allUsers];
+      setAllUsers(updated);
+      try {
+        localStorage.setItem('auravoice_custom_users', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      syncProfileToSupabase(targetUser);
+    }
+
     setCurrentUser(targetUser);
     setIsAuthenticated(true);
     setIsAuthModalOpen(false);
 
     try {
+      localStorage.setItem('auravoice_current_user', JSON.stringify(targetUser));
       localStorage.setItem('auravoice_auth_user_id', targetUser.id);
     } catch {
       // ignore
@@ -703,19 +885,56 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentUser((prev) => {
       const updated = { ...prev, ...updates };
       setAllUsers((users) => users.map((u) => (u.id === prev.id ? updated : u)));
+      syncProfileToSupabase(updated);
       return updated;
     });
+  };
+
+  const updateCurrentUserProfile = (updates: Partial<UserProfile>) => {
+    updateUserProfile(updates);
+  };
+
+  const [followedUserIds, setFollowedUserIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('auravoice_followed_user_ids');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return [];
+  });
+
+  const isUserFollowed = (userId: string): boolean => {
+    return followedUserIds.includes(userId);
   };
 
   const toggleFollowUser = (targetUserId: string) => {
     const target = allUsers.find((u) => u.id === targetUserId);
     if (!target) return;
-    const isCurrentlyFollowing = currentUser.followingCount > 0;
-    const delta = isCurrentlyFollowing ? -1 : 1;
-    setCurrentUser((prev) => ({ ...prev, followingCount: Math.max(0, prev.followingCount + delta) }));
-    setAllUsers((users) =>
-      users.map((u) => (u.id === targetUserId ? { ...u, followersCount: Math.max(0, u.followersCount + delta) } : u))
-    );
+    
+    setFollowedUserIds((prev) => {
+      const isAlreadyFollowing = prev.includes(targetUserId);
+      const updated = isAlreadyFollowing
+        ? prev.filter((id) => id !== targetUserId)
+        : [...prev, targetUserId];
+      try {
+        localStorage.setItem('auravoice_followed_user_ids', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      
+      const delta = isAlreadyFollowing ? -1 : 1;
+      setCurrentUser((curr) => ({
+        ...curr,
+        followingCount: Math.max(0, curr.followingCount + delta),
+      }));
+      setAllUsers((users) =>
+        users.map((u) => (u.id === targetUserId ? { ...u, followersCount: Math.max(0, u.followersCount + delta) } : u))
+      );
+      
+      return updated;
+    });
+
     audioEngine.playSoundEffect('chime');
   };
 
@@ -769,7 +988,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // ROOM ACTIONS
   const createRoom = (roomData: Partial<VoiceRoom>): VoiceRoom => {
-    const seatCount = roomData.seatCount || 8;
+    const seatCount = roomData.seatCount || 50;
     const initialSeats: MicSeat[] = Array.from({ length: seatCount }, (_, i) => ({
       seatIndex: i,
       userId: i === 0 ? currentUser.id : null,
@@ -810,6 +1029,9 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setActiveRoom(newRoom);
     setIsRoomMinimized(false);
     audioEngine.playSoundEffect('fanfare');
+
+    // Sync room with Supabase cloud database
+    syncRoomToSupabase(newRoom);
 
     return newRoom;
   };
@@ -859,24 +1081,129 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setIsRoomMinimized(minimized);
   };
 
-  const takeSeat = (seatIndex: number): boolean => {
+  // Helper to ensure each userId appears on AT MOST ONE seat in the room (prevent duplicate IDs)
+  const cleanUniqueSeats = (seats: MicSeat[], usersList: UserProfile[] = allUsers): MicSeat[] => {
+    const seenUserIds = new Set<string>();
+    return seats.map((seat, idx) => {
+      const s = {
+        ...seat,
+        seatIndex: seat.seatIndex !== undefined ? seat.seatIndex : idx,
+      };
+      const effectiveUserId = s.userId || s.user?.id || null;
+      if (!effectiveUserId) {
+        return { ...s, userId: null, user: null, isSpeaking: false, volumeLevel: 0 };
+      }
+      // If this userId already has an earlier seat, clear this duplicate seat completely
+      if (seenUserIds.has(effectiveUserId)) {
+        return {
+          ...s,
+          userId: null,
+          user: null,
+          isSpeaking: false,
+          isMuted: false,
+          volumeLevel: 0,
+        };
+      }
+      seenUserIds.add(effectiveUserId);
+      const userObj = usersList.find((u) => u.id === effectiveUserId) || s.user || null;
+      return { ...s, userId: effectiveUserId, user: userObj };
+    });
+  };
+
+  const takeSeat = (seatIndex: number, targetUserId?: string): boolean => {
     if (!activeRoom) return false;
     const seat = activeRoom.seats[seatIndex];
-    if (!seat || seat.userId || seat.isLocked) {
+    if (!seat || seat.isLocked) {
       return false;
     }
 
+    const userIdToSeat = targetUserId || currentUser.id;
+    const userObj = targetUserId ? allUsers.find((u) => u.id === targetUserId) || null : currentUser;
+    if (!userObj) return false;
+
+    // 1. Remove this user from ANY seat they currently occupy
+    // 2. Put user on seatIndex
     const updatedSeats = activeRoom.seats.map((s, idx) => {
-      if (idx === seatIndex) {
-        return { ...s, userId: currentUser.id, user: currentUser, isMuted: false, isSpeaking: false };
+      const currentSeatIndex = s.seatIndex !== undefined ? s.seatIndex : idx;
+      const isTargetSeat = currentSeatIndex === seatIndex;
+      const isCurrentOccupant = s.userId === userIdToSeat || s.user?.id === userIdToSeat;
+
+      if (isTargetSeat) {
+        return {
+          ...s,
+          seatIndex: seatIndex,
+          userId: userIdToSeat,
+          user: userObj,
+          isMuted: false,
+          isSpeaking: false,
+          volumeLevel: 0,
+        };
       }
-      if (s.userId === currentUser.id) {
-        return { ...s, userId: null, user: null, isSpeaking: false, isMuted: false, volumeLevel: 0 };
+      if (isCurrentOccupant) {
+        return {
+          ...s,
+          seatIndex: currentSeatIndex,
+          userId: null,
+          user: null,
+          isSpeaking: false,
+          isMuted: false,
+          volumeLevel: 0,
+        };
+      }
+      return {
+        ...s,
+        seatIndex: currentSeatIndex,
+      };
+    });
+
+    const cleanedSeats = cleanUniqueSeats(updatedSeats, allUsers);
+    const updatedRoom = { ...activeRoom, seats: cleanedSeats };
+    setActiveRoom(updatedRoom);
+    setRooms((prev) => prev.map((r) => (r.id === activeRoom.id ? updatedRoom : r)));
+    audioEngine.playSoundEffect('chime');
+    return true;
+  };
+
+  const moveSeat = (fromIndex: number, toIndex: number): boolean => {
+    if (!activeRoom) return false;
+    const fromSeat = activeRoom.seats[fromIndex];
+    const toSeat = activeRoom.seats[toIndex];
+    if (!fromSeat || (!fromSeat.userId && !fromSeat.user) || !toSeat || toSeat.isLocked) return false;
+
+    const movingUserId = fromSeat.userId || fromSeat.user?.id;
+    const movingUser = fromSeat.user || (movingUserId ? allUsers.find((u) => u.id === movingUserId) : null);
+    const movingMuted = fromSeat.isMuted;
+    if (!movingUserId || !movingUser) return false;
+
+    const updatedSeats = activeRoom.seats.map((s, idx) => {
+      const currentSeatIndex = s.seatIndex !== undefined ? s.seatIndex : idx;
+      if (currentSeatIndex === toIndex) {
+        return {
+          ...s,
+          seatIndex: toIndex,
+          userId: movingUserId,
+          user: movingUser,
+          isMuted: movingMuted,
+          isSpeaking: false,
+          volumeLevel: 0,
+        };
+      }
+      if (currentSeatIndex === fromIndex || s.userId === movingUserId || s.user?.id === movingUserId) {
+        return {
+          ...s,
+          seatIndex: currentSeatIndex,
+          userId: null,
+          user: null,
+          isSpeaking: false,
+          isMuted: false,
+          volumeLevel: 0,
+        };
       }
       return s;
     });
 
-    const updatedRoom = { ...activeRoom, seats: updatedSeats };
+    const cleaned = cleanUniqueSeats(updatedSeats, allUsers);
+    const updatedRoom = { ...activeRoom, seats: cleaned };
     setActiveRoom(updatedRoom);
     setRooms((prev) => prev.map((r) => (r.id === activeRoom.id ? updatedRoom : r)));
     audioEngine.playSoundEffect('chime');
@@ -888,13 +1215,24 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     audioEngine.stopMicrophoneCapture();
 
     const updatedSeats = activeRoom.seats.map((s, idx) => {
-      if (seatIndex !== undefined ? idx === seatIndex : s.userId === currentUser.id) {
-        return { ...s, userId: null, user: null, isSpeaking: false, isMuted: false, volumeLevel: 0 };
+      const currentSeatIndex = s.seatIndex !== undefined ? s.seatIndex : idx;
+      const isTarget = seatIndex !== undefined ? currentSeatIndex === seatIndex : (s.userId === currentUser.id || s.user?.id === currentUser.id);
+      if (isTarget) {
+        return {
+          ...s,
+          seatIndex: currentSeatIndex,
+          userId: null,
+          user: null,
+          isSpeaking: false,
+          isMuted: false,
+          volumeLevel: 0,
+        };
       }
       return s;
     });
 
-    const updatedRoom = { ...activeRoom, seats: updatedSeats };
+    const cleaned = cleanUniqueSeats(updatedSeats, allUsers);
+    const updatedRoom = { ...activeRoom, seats: cleaned };
     setActiveRoom(updatedRoom);
     setRooms((prev) => prev.map((r) => (r.id === activeRoom.id ? updatedRoom : r)));
   };
@@ -945,8 +1283,13 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setRooms((prev) =>
       prev.map((r) => {
         if (r.id !== roomId) return r;
-        const updatedSeats = r.seats.map((s, idx) => (idx === seatIndex ? { ...s, userId: null, user: null, isSpeaking: false } : s));
-        const updated = { ...r, seats: updatedSeats };
+        const updatedSeats = r.seats.map((s, idx) =>
+          idx === seatIndex
+            ? { ...s, userId: null, user: null, isSpeaking: false, isMuted: false, volumeLevel: 0 }
+            : s
+        );
+        const cleaned = cleanUniqueSeats(updatedSeats, allUsers);
+        const updated = { ...r, seats: cleaned };
         if (activeRoom?.id === roomId) setActiveRoom(updated);
         return updated;
       })
@@ -958,7 +1301,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setRooms((prev) =>
       prev.map((r) => {
         if (r.id !== roomId) return r;
-        const updated = { ...r, ...updates };
+        let finalUpdates = { ...updates };
+        if (finalUpdates.seats) {
+          finalUpdates.seats = cleanUniqueSeats(finalUpdates.seats, allUsers);
+        }
+        const updated = { ...r, ...finalUpdates };
         if (activeRoom?.id === roomId) setActiveRoom(updated);
         return updated;
       })
@@ -1069,6 +1416,101 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
+  // ROOM THEMES & CUSTOMIZATION (DIAMOND UNLOCK)
+  const [unlockedRoomThemeIds, setUnlockedRoomThemeIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('auravoice_unlocked_room_themes');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return ['theme_classic_purple', 'theme_dark_obsidian', 'theme_ocean_breeze', 'theme_sunset_amber'];
+  });
+
+  const isRoomThemeUnlocked = (themeId: string): boolean => {
+    const theme = getThemeById(themeId);
+    if (!theme) return false;
+    if (theme.priceDiamonds === 0) return true;
+    return unlockedRoomThemeIds.includes(themeId);
+  };
+
+  const unlockRoomTheme = (themeId: string): { success: boolean; message: string } => {
+    const theme = getThemeById(themeId);
+    if (!theme) {
+      return { success: false, message: 'Theme not found.' };
+    }
+
+    if (isRoomThemeUnlocked(themeId)) {
+      return { success: true, message: `${theme.name} is already unlocked!` };
+    }
+
+    if (currentUser.diamonds < theme.priceDiamonds) {
+      return {
+        success: false,
+        message: `Insufficient diamonds! ${theme.name} costs ${theme.priceDiamonds.toLocaleString()} diamonds, but you currently have ${currentUser.diamonds.toLocaleString()} diamonds.`,
+      };
+    }
+
+    const updatedDiamonds = currentUser.diamonds - theme.priceDiamonds;
+    setCurrentUser((prev) => ({ ...prev, diamonds: updatedDiamonds }));
+    setAllUsers((users) =>
+      users.map((u) => (u.id === currentUser.id ? { ...u, diamonds: updatedDiamonds } : u))
+    );
+
+    const updatedUnlocked = [...unlockedRoomThemeIds, themeId];
+    setUnlockedRoomThemeIds(updatedUnlocked);
+    try {
+      localStorage.setItem('auravoice_unlocked_room_themes', JSON.stringify(updatedUnlocked));
+    } catch {
+      // ignore
+    }
+
+    const newTx: WalletTransaction = {
+      id: `tx_theme_${Date.now()}`,
+      userId: currentUser.id,
+      type: 'DIAMOND_WITHDRAWAL' as any,
+      currency: 'DIAMONDS',
+      amount: theme.priceDiamonds,
+      direction: 'DEBIT',
+      balanceAfter: updatedDiamonds,
+      referenceId: theme.id,
+      description: `Unlocked Premium Room Theme: ${theme.name}`,
+      status: 'SUCCESS',
+      createdAt: new Date().toISOString(),
+    };
+    setTransactions((prev) => [newTx, ...prev]);
+
+    audioEngine.playSoundEffect('fanfare');
+    confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+
+    return {
+      success: true,
+      message: `Unlocked "${theme.name}" for ${theme.priceDiamonds.toLocaleString()} Diamonds!`,
+    };
+  };
+
+  const hostChangeRoomTheme = (roomId: string, themeId: string): { success: boolean; message: string } => {
+    const theme = getThemeById(themeId);
+    if (!theme) {
+      return { success: false, message: 'Theme not found.' };
+    }
+
+    if (!isRoomThemeUnlocked(themeId)) {
+      return {
+        success: false,
+        message: `Please unlock "${theme.name}" first with ${theme.priceDiamonds.toLocaleString()} diamonds.`,
+      };
+    }
+
+    hostUpdateRoom(roomId, {
+      backgroundTheme: theme.gradientClass,
+      themeId: theme.id,
+    });
+
+    audioEngine.playSoundEffect('chime');
+    return { success: true, message: `Applied ${theme.name} stage theme!` };
+  };
+
   // FINANCIAL & GIFT ENGINE
   const clearGiftAnimation = () => {
     setActiveGiftAnimation(null);
@@ -1080,6 +1522,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const sendGift = (giftId: string, receiverId: string, count = 1, roomId?: string): { success: boolean; message: string } => {
+    const targetRoomId = roomId || activeRoom?.id;
     const gift = gifts.find((g) => g.id === giftId);
     if (!gift) return { success: false, message: 'Gift not found' };
 
@@ -1088,20 +1531,14 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return { success: false, message: `Insufficient coins. Need ${totalCoinPrice.toLocaleString()} coins.` };
     }
 
-    const receiver = allUsers.find((u) => u.id === receiverId) || (activeRoom ? activeRoom.host : INITIAL_USERS[1]);
-
-    let generatedDiamondsTotal = 0;
-    let hostDiamonds = 0;
-
-    if (gift.category === 'Lucky') {
-      const luckyRate = gift.luckyCoinToDiamondRate || 20;
-      hostDiamonds = Math.floor(totalCoinPrice / luckyRate);
-      generatedDiamondsTotal = hostDiamonds; // Platform specific calculation
-    } else {
-      generatedDiamondsTotal = Math.floor(totalCoinPrice * platformConfig.coinToDiamondRate);
-      const hostShareRate = receiver.hostCommissionRate || platformConfig.hostCommissionPercent / 100;
-      hostDiamonds = Math.floor(generatedDiamondsTotal * hostShareRate);
+    const receiver = allUsers.find((u) => u.id === receiverId) || (activeRoom ? activeRoom.host : null);
+    if (!receiver) {
+      return { success: false, message: 'No recipient selected or available for this gift.' };
     }
+
+    // 1 Coin Sent = 1 Diamond Received (1:1 direct ratio: exact coins sent are received as diamonds)
+    const hostDiamonds = totalCoinPrice;
+    const generatedDiamondsTotal = totalCoinPrice;
 
     // Deduct coins from sender
     const newSenderCoins = currentUser.coins - totalCoinPrice;
@@ -1121,8 +1558,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (gift.category === 'Lucky') {
       // Find eligible milestones based on progress
-      const targetRoomId = roomId || activeRoom?.id;
-      
       const newProgresses = [...luckyBackupProgresses];
       
       // We will increment the progress for all active lucky backup milestones
@@ -1212,6 +1647,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       referenceId: `gift_${gift.id}_x${count}`,
       description: `Sent ${count}x ${gift.name} ${gift.icon} to ${receiver.displayName}`,
       status: 'SUCCESS',
+      metadata: { roomId: targetRoomId, receiverId: receiver.id, giftId: gift.id, count },
       createdAt: new Date().toISOString(),
     };
 
@@ -1226,10 +1662,40 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       referenceId: `gift_${gift.id}_x${count}`,
       description: transactionDetails,
       status: 'SUCCESS',
+      metadata: { roomId: targetRoomId, senderId: currentUser.id, giftId: gift.id, count },
       createdAt: new Date().toISOString(),
     };
 
     setTransactions((prev) => [txSender, txReceiver, ...prev]);
+
+    // Sync Gift Log to Supabase
+    syncGiftLogToSupabase({
+      roomId: targetRoomId,
+      senderId: currentUser.id,
+      receiverId: receiver.id,
+      giftId: gift.id,
+      giftName: gift.name,
+      giftIcon: gift.icon,
+      coinCost: totalCoinPrice,
+      comboCount: count,
+    });
+
+    // Update seat received diamonds if in active room
+    if (activeRoom) {
+      setActiveRoom(prev => {
+        if (!prev) return prev;
+        const newSeats = prev.seats.map(seat => {
+          if (seat.userId === receiver.id) {
+            return {
+              ...seat,
+              receivedDiamonds: (seat.receivedDiamonds || 0) + finalHostDiamonds
+            };
+          }
+          return seat;
+        });
+        return { ...prev, seats: newSeats };
+      });
+    }
 
     // Play Gift SFX
     audioEngine.playSoundEffect(gift.soundEffect);
@@ -1279,7 +1745,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setComboTimerId(timer);
 
     // Add to Room Chat Feed if in room
-    const targetRoomId = roomId || activeRoom?.id;
     if (targetRoomId) {
       const giftChatMsg: RoomChatMessage = {
         id: `rc_${Date.now()}`,
@@ -1336,9 +1801,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
     setCurrentUser(updatedSender);
 
-    const generatedDiamondsTotal = Math.floor(gift.coinPrice * platformConfig.coinToDiamondRate);
-    const hostShareRate = receiver.hostCommissionRate || platformConfig.hostCommissionPercent / 100;
-    const hostDiamonds = Math.floor(generatedDiamondsTotal * hostShareRate);
+    // 1 Coin Sent = 1 Diamond Received (1:1 direct ratio)
+    const hostDiamonds = gift.coinPrice;
 
     const updatedReceiver = {
       ...receiver,
@@ -1347,6 +1811,56 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setAllUsers((users) =>
       users.map((u) => (u.id === currentUser.id ? updatedSender : u.id === receiver.id ? updatedReceiver : u))
     );
+
+    // Update seat received diamonds if in active room
+    if (activeRoom) {
+      setActiveRoom((prev) => {
+        if (!prev) return prev;
+        const newSeats = prev.seats.map((seat) => {
+          if (seat.userId === receiver.id) {
+            return {
+              ...seat,
+              receivedDiamonds: (seat.receivedDiamonds || 0) + hostDiamonds,
+            };
+          }
+          return seat;
+        });
+        return { ...prev, seats: newSeats };
+      });
+    }
+
+    // Record wallet transactions
+    const txSender: WalletTransaction = {
+      id: `tx_${Date.now()}_combo_send`,
+      userId: currentUser.id,
+      type: 'gift_sent',
+      currency: 'COINS',
+      amount: gift.coinPrice,
+      direction: 'DEBIT',
+      balanceAfter: newSenderCoins,
+      referenceId: `gift_${gift.id}_combo`,
+      description: `Combo Sent ${gift.name} ${gift.icon} to ${receiver.displayName}`,
+      status: 'SUCCESS',
+      metadata: { roomId, receiverId: receiver.id, giftId: gift.id, count: 1 },
+      createdAt: new Date().toISOString(),
+    };
+
+    const txReceiver: WalletTransaction = {
+      id: `tx_${Date.now()}_combo_recv`,
+      userId: receiver.id,
+      type: 'gift_received',
+      currency: 'DIAMONDS',
+      amount: hostDiamonds,
+      direction: 'CREDIT',
+      balanceAfter: updatedReceiver.diamonds,
+      referenceId: `gift_${gift.id}_combo`,
+      description: `Combo Received ${gift.name} ${gift.icon} from ${currentUser.displayName}`,
+      status: 'SUCCESS',
+      metadata: { roomId, senderId: currentUser.id, giftId: gift.id, count: 1 },
+      createdAt: new Date().toISOString(),
+    };
+
+    setTransactions((prev) => [txSender, txReceiver, ...prev]);
 
     const nextCount = count + 1;
 
@@ -1455,6 +1969,56 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setTransactions((prev) => [newTx, ...prev]);
     audioEngine.playSoundEffect('fanfare');
 
+    // Register volume & webhook log on matching payment gateway
+    const matchedGw = paymentGateways.find((g) =>
+      g.name.toLowerCase().includes(paymentMethod.toLowerCase()) ||
+      paymentMethod.toLowerCase().includes(g.code.toLowerCase())
+    );
+    if (matchedGw) {
+      setPaymentGateways((prev) =>
+        prev.map((g) =>
+          g.id === matchedGw.id
+            ? {
+                ...g,
+                totalProcessedVolumeUsd: g.totalProcessedVolumeUsd + pkg.priceUsd,
+                totalTransactionsCount: g.totalTransactionsCount + 1,
+                lastEventReceivedAt: new Date().toISOString(),
+              }
+            : g
+        )
+      );
+
+      const whLog: GatewayWebhookLog = {
+        id: `wh_log_${Date.now()}`,
+        gatewayId: matchedGw.id,
+        gatewayName: matchedGw.name,
+        eventType:
+          matchedGw.code === 'stripe'
+            ? 'payment_intent.succeeded'
+            : matchedGw.code === 'google_play'
+            ? 'googleplay.order.purchased'
+            : matchedGw.code === 'apple_app_store'
+            ? 'appstore.v2.did_renew'
+            : 'charge.succeeded',
+        amountUsd: pkg.priceUsd,
+        currency: 'USD',
+        customerId: currentUser.id,
+        customerName: currentUser.displayName,
+        status: 'SUCCESS',
+        ipAddress: '198.51.100.' + Math.floor(10 + Math.random() * 80),
+        latencyMs: Math.floor(25 + Math.random() * 40),
+        timestamp: new Date().toISOString(),
+        payloadSnippet: JSON.stringify({
+          packageId: pkg.id,
+          coins: totalCoinsGranted,
+          priceUsd: pkg.priceUsd,
+          method: paymentMethod,
+          status: 'succeeded',
+        }),
+      };
+      setGatewayWebhookLogs((prev) => [whLog, ...prev.slice(0, 49)]);
+    }
+
     confetti({
       particleCount: 100,
       spread: 80,
@@ -1503,6 +2067,199 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     audioEngine.playSoundEffect('fanfare');
 
     return { success: true, message: `Congratulations! You are now a ${tier.name} member!` };
+  };
+
+  // STORE ITEM PURCHASING & INVENTORY
+  const [storeItems, setStoreItems] = useState<StoreItem[]>(() => {
+    try {
+      const stored = localStorage.getItem('auravoice_store_items');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return STORE_ITEMS;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('auravoice_store_items', JSON.stringify(storeItems));
+    } catch {}
+  }, [storeItems]);
+
+  const buyStoreItem = (itemId: string, duration: ItemDuration, autoEquip = true): { success: boolean; message: string } => {
+    const item = storeItems.find((it) => it.id === itemId) || STORE_ITEMS.find((it) => it.id === itemId);
+    if (!item) {
+      return { success: false, message: 'Item not found in store catalog.' };
+    }
+
+    // VIP Requirement check
+    if (item.requiredVip) {
+      const vipOrder = ['vip_0', 'vip_1', 'vip_2', 'vip_3', 'vip_4', 'vip_5'];
+      const currentVipIndex = vipOrder.indexOf(currentUser.vipTier || 'vip_0');
+      const requiredVipIndex = vipOrder.indexOf(item.requiredVip);
+      if (currentVipIndex < requiredVipIndex) {
+        return {
+          success: false,
+          message: `This item is an exclusive privilege for ${item.requiredVip.toUpperCase()} members and above.`,
+        };
+      }
+    }
+
+    const price =
+      duration === '7d'
+        ? item.price7Days
+        : duration === '30d'
+        ? item.price30Days
+        : item.pricePermanent;
+
+    if (currentUser.coins < price) {
+      return {
+        success: false,
+        message: `Insufficient Coins! You need ${price.toLocaleString()} coins (Balance: ${currentUser.coins.toLocaleString()}). Please recharge coins.`,
+      };
+    }
+
+    const newCoins = currentUser.coins - price;
+    const newXp = (currentUser.experiencePoints || 0) + Math.floor(price * 0.5);
+
+    let updatedUser: UserProfile = {
+      ...currentUser,
+      coins: newCoins,
+      experiencePoints: newXp,
+    };
+
+    // Add to specific category inventory
+    if (item.category === 'frames') {
+      const currentOwned = updatedUser.ownedFrames ? [...updatedUser.ownedFrames] : ['frame_none'];
+      if (!currentOwned.includes(item.id)) {
+        currentOwned.push(item.id);
+      }
+      updatedUser.ownedFrames = currentOwned;
+      if (autoEquip) {
+        updatedUser.avatarFrame = item.id;
+      }
+    } else if (item.category === 'rides') {
+      const currentOwned = updatedUser.ownedRides ? [...updatedUser.ownedRides] : ['ride_none'];
+      if (!currentOwned.includes(item.id)) {
+        currentOwned.push(item.id);
+      }
+      updatedUser.ownedRides = currentOwned;
+      if (autoEquip) {
+        updatedUser.equippedRide = item.id;
+      }
+    } else if (item.category === 'bubbles') {
+      const currentOwned = updatedUser.ownedBubbles ? [...updatedUser.ownedBubbles] : ['bubble_default'];
+      if (!currentOwned.includes(item.id)) {
+        currentOwned.push(item.id);
+      }
+      updatedUser.ownedBubbles = currentOwned;
+      if (autoEquip) {
+        updatedUser.equippedBubble = item.id;
+      }
+    } else if (item.category === 'badges') {
+      const currentOwned = updatedUser.ownedBadges ? [...updatedUser.ownedBadges] : ['Top Star Host'];
+      if (!currentOwned.includes(item.name)) {
+        currentOwned.push(item.name);
+      }
+      updatedUser.ownedBadges = currentOwned;
+      if (autoEquip) {
+        updatedUser.badgeTitle = item.name;
+      }
+    } else if (item.category === 'effects') {
+      const currentOwned = updatedUser.ownedEntryEffects ? [...updatedUser.ownedEntryEffects] : [];
+      if (!currentOwned.includes(item.id)) {
+        currentOwned.push(item.id);
+      }
+      updatedUser.ownedEntryEffects = currentOwned;
+      if (autoEquip) {
+        updatedUser.equippedEntryEffect = item.id;
+      }
+    } else if (item.category === 'sounds') {
+      const currentOwned = updatedUser.ownedSounds ? [...updatedUser.ownedSounds] : [];
+      if (!currentOwned.includes(item.id)) {
+        currentOwned.push(item.id);
+      }
+      updatedUser.ownedSounds = currentOwned;
+      if (autoEquip) {
+        updatedUser.equippedSound = item.id;
+      }
+    } else if (item.category === 'waves') {
+      const currentOwned = updatedUser.ownedWaves ? [...updatedUser.ownedWaves] : [];
+      if (!currentOwned.includes(item.id)) {
+        currentOwned.push(item.id);
+      }
+      updatedUser.ownedWaves = currentOwned;
+      if (autoEquip) {
+        updatedUser.equippedWave = item.id;
+      }
+    }
+
+    setCurrentUser(updatedUser);
+    setAllUsers((users) => users.map((u) => (u.id === currentUser.id ? updatedUser : u)));
+
+    // Increment sales count on item
+    setStoreItems((prev) =>
+      prev.map((it) => (it.id === item.id ? { ...it, salesCount: (it.salesCount || 0) + 1 } : it))
+    );
+
+    const durationLabel = duration === '7d' ? '7 Days' : duration === '30d' ? '30 Days' : 'Permanent';
+    const tx: WalletTransaction = {
+      id: `tx_${Date.now()}_store`,
+      userId: currentUser.id,
+      type: 'store_item_purchase',
+      currency: 'COINS',
+      amount: price,
+      direction: 'DEBIT',
+      balanceAfter: newCoins,
+      referenceId: `store_${item.id}_${duration}`,
+      description: `Purchased ${item.name} (${durationLabel}) from Mall`,
+      status: 'SUCCESS',
+      createdAt: new Date().toISOString(),
+    };
+
+    setTransactions((prev) => [tx, ...prev]);
+
+    if (item.soundEffect) {
+      audioEngine.playSoundEffect(item.soundEffect);
+    } else {
+      audioEngine.playSoundEffect('fanfare');
+    }
+
+    confetti({
+      particleCount: 40,
+      spread: 60,
+      origin: { y: 0.6 },
+    });
+
+    return {
+      success: true,
+      message: `🎉 Successfully purchased ${item.name} (${durationLabel})${autoEquip ? ' and equipped!' : '! Added to your backpack.'}`,
+    };
+  };
+
+  const equipStoreItem = (category: StoreItemCategory, itemId: string, name?: string) => {
+    let updatedUser: UserProfile = { ...currentUser };
+
+    if (category === 'frames') {
+      updatedUser.avatarFrame = itemId;
+    } else if (category === 'rides') {
+      updatedUser.equippedRide = itemId;
+    } else if (category === 'bubbles') {
+      updatedUser.equippedBubble = itemId;
+    } else if (category === 'badges') {
+      updatedUser.badgeTitle = name || itemId;
+    } else if (category === 'effects') {
+      updatedUser.equippedEntryEffect = itemId;
+    } else if (category === 'sounds') {
+      updatedUser.equippedSound = itemId;
+    } else if (category === 'waves') {
+      updatedUser.equippedWave = itemId;
+    }
+
+    setCurrentUser(updatedUser);
+    setAllUsers((users) => users.map((u) => (u.id === currentUser.id ? updatedUser : u)));
+    audioEngine.playSoundEffect('chime');
   };
 
   // HOST WITHDRAWAL REQUEST
@@ -1761,6 +2518,9 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return next;
     });
 
+    // Sync transaction to Supabase
+    syncTransactionToSupabase(sellerTx);
+
     // 7. Push real-time notification to recipient
     const recipientNotification: NotificationItem = {
       id: `notif_${Date.now()}`,
@@ -1807,6 +2567,22 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   };
 
+  
+  const updateBuyerRequestStatus = (
+    requestId: string,
+    status: 'PENDING' | 'FULFILLED' | 'CANCELLED' | 'COMPLETED' | 'REJECTED'
+  ) => {
+    const normalizedStatus: 'PENDING' | 'FULFILLED' | 'CANCELLED' =
+      status === 'COMPLETED' ? 'FULFILLED' : status === 'REJECTED' ? 'CANCELLED' : status;
+    setBuyerRequests((prev) => {
+      const next = prev.map((req) => (req.id === requestId ? { ...req, status: normalizedStatus } : req));
+      try {
+        localStorage.setItem('auravoice_buyer_requests', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
   const submitBuyerCoinRequest = async (
     request: Omit<BuyerCoinRequest, 'id' | 'createdAt' | 'status'>
   ): Promise<{ success: boolean; message: string }> => {
@@ -1849,9 +2625,24 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const updateSellerProfileSettings = (sellerId: string, updates: Partial<SellerProfile>) => {
     setAllUsers((prevUsers) =>
       prevUsers.map((u) => {
-        if (u.id === sellerId && u.sellerInfo) {
-          const updatedSellerInfo = { ...u.sellerInfo, ...updates };
-          const updatedUser = { ...u, sellerInfo: updatedSellerInfo };
+        if (u.id === sellerId) {
+          const baseSellerInfo = u.sellerInfo || {
+            sellerId: u.id,
+            agencyName: u.displayName,
+            verificationLevel: 'gold',
+            isOfficialVerified: true,
+            rating: 5.0,
+            totalTrades: 0,
+            totalCoinsSold: 0,
+            totalRevenueUsd: 0,
+            discountPercentage: 10,
+            sellerStatus: 'online',
+            responseTimeText: '< 5 mins',
+            bio: 'Verified coin reseller',
+            paymentMethods: [],
+          };
+          const updatedSellerInfo = { ...baseSellerInfo, ...updates };
+          const updatedUser = { ...u, sellerInfo: updatedSellerInfo, isSeller: true };
           if (currentUser.id === sellerId) {
             setCurrentUser(updatedUser);
           }
@@ -1876,6 +2667,330 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return u;
       })
     );
+  };
+
+  const submitAgencyApplication = async (payload: {
+    agencyName: string;
+    country: string;
+    phone: string;
+    address: string;
+    idCardFront: string;
+    idCardBack: string;
+    commissionRate?: number;
+  }) => {
+    if (currentUser.isHostAgency || currentUser.hostAgencyId) {
+      return { success: false, message: 'You are already registered in an agency.' };
+    }
+
+    const existingPending = agencyApplications.find(
+      (a) => a.userId === currentUser.id && a.status === 'PENDING'
+    );
+    if (existingPending) {
+      return { success: false, message: 'You already have a pending agency application under admin review.' };
+    }
+
+    const newApp: AgencyApplication = {
+      id: `agy_app_${Date.now()}`,
+      userId: currentUser.id,
+      user: currentUser,
+      agencyName: payload.agencyName.trim(),
+      country: payload.country,
+      phone: payload.phone,
+      address: payload.address,
+      idCardFront: payload.idCardFront,
+      idCardBack: payload.idCardBack,
+      commissionRate: payload.commissionRate || 0.15,
+      status: 'PENDING',
+      submittedAt: new Date().toISOString(),
+    };
+
+    setAgencyApplications((prev) => [newApp, ...prev]);
+
+    // Update user state so UI reflects pending status
+    const updatedUser: UserProfile = {
+      ...currentUser,
+      agencyStatus: 'pending',
+      pendingAgencyName: payload.agencyName.trim(),
+    };
+    setCurrentUser(updatedUser);
+    setAllUsers((prevUsers) =>
+      prevUsers.map((u) => (u.id === currentUser.id ? updatedUser : u))
+    );
+
+    // Audit log
+    const auditLog: AdminAuditLog = {
+      id: `audit_${Date.now()}`,
+      adminId: 'SYSTEM',
+      adminName: 'Applicant Gateway',
+      action: 'AGENCY_APPLICATION_SUBMITTED',
+      targetType: 'agency',
+      targetId: newApp.id,
+      details: `New Host Agency application from ${currentUser.displayName} (${currentUser.numericId || currentUser.id}) for "${payload.agencyName}" (${payload.country})`,
+      ipAddress: '127.0.0.1',
+      timestamp: new Date().toISOString(),
+    };
+    setAuditLogs((prev) => [auditLog, ...prev]);
+
+    // Notification to user
+    const notif: NotificationItem = {
+      id: `notif_${Date.now()}`,
+      userId: currentUser.id,
+      type: 'system',
+      title: 'Agency Application Submitted',
+      message: `Your application to create agency "${payload.agencyName}" has been submitted to the Admin Panel for review.`,
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    };
+    setNotifications((prev) => [notif, ...prev]);
+
+    return { success: true, message: 'Agency application submitted successfully! It is now pending admin review.' };
+  };
+
+  const adminApproveAgencyApplication = (applicationId: string, commissionRate = 0.15, notes?: string) => {
+    const app = agencyApplications.find((a) => a.id === applicationId);
+    if (!app) return;
+
+    // Update application status
+    setAgencyApplications((prev) =>
+      prev.map((a) =>
+        a.id === applicationId
+          ? {
+              ...a,
+              status: 'APPROVED',
+              commissionRate,
+              adminNotes: notes,
+              reviewedAt: new Date().toISOString(),
+              reviewedBy: 'Admin',
+            }
+          : a
+      )
+    );
+
+    // Promote target user to Host Agency Owner
+    const targetUserId = app.userId;
+    const generatedAgencyId = `AGY_${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const newAgencyInfo: HostAgencyProfile = {
+      agencyId: generatedAgencyId,
+      agencyName: app.agencyName,
+      agencyCommissionRate: commissionRate,
+      totalHosts: 0,
+      totalAgencyRevenueUsd: 0,
+      totalDiamondsGenerated: 0,
+      status: 'active',
+      country: app.country,
+      contactPhone: app.phone,
+      address: app.address,
+      idCardFront: app.idCardFront,
+      idCardBack: app.idCardBack,
+      reviewStatus: 'approved',
+    };
+
+    setAllUsers((prevUsers) =>
+      prevUsers.map((u) => {
+        if (u.id === targetUserId) {
+          const updatedUser: UserProfile = {
+            ...u,
+            role: 'agent',
+            isHostAgency: true,
+            agencyStatus: 'approved',
+            pendingAgencyName: undefined,
+            hostAgencyInfo: newAgencyInfo,
+          };
+          if (currentUser.id === targetUserId) {
+            setCurrentUser(updatedUser);
+          }
+          return updatedUser;
+        }
+        return u;
+      })
+    );
+
+    if (currentUser.id === targetUserId) {
+      setCurrentUser((prev) => ({
+        ...prev,
+        role: 'agent',
+        isHostAgency: true,
+        agencyStatus: 'approved',
+        pendingAgencyName: undefined,
+        hostAgencyInfo: newAgencyInfo,
+      }));
+    }
+
+    // Add Audit Log
+    const audit: AdminAuditLog = {
+      id: `audit_${Date.now()}`,
+      adminId: 'ADMIN_SUPER',
+      adminName: 'Operations Lead',
+      action: 'APPROVE_AGENCY_APPLICATION',
+      targetType: 'agency',
+      targetId: applicationId,
+      details: `Approved agency application for "${app.agencyName}" (Owner: ${app.user.displayName}, UID: ${app.user.numericId || app.userId}, Cut: ${(commissionRate * 100).toFixed(0)}%)`,
+      ipAddress: '127.0.0.1',
+      timestamp: new Date().toISOString(),
+    };
+    setAuditLogs((prev) => [audit, ...prev]);
+
+    // Send notification to applicant
+    const notif: NotificationItem = {
+      id: `notif_${Date.now()}`,
+      userId: targetUserId,
+      type: 'system',
+      title: '🎉 Agency Application Approved!',
+      message: `Congratulations! Your host agency "${app.agencyName}" has been approved by the Admin team. You can now invite hosts and earn ${(commissionRate * 100).toFixed(0)}% commission!`,
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    };
+    setNotifications((prev) => [notif, ...prev]);
+  };
+
+  const adminRejectAgencyApplication = (applicationId: string, notes?: string) => {
+    const app = agencyApplications.find((a) => a.id === applicationId);
+    if (!app) return;
+
+    setAgencyApplications((prev) =>
+      prev.map((a) =>
+        a.id === applicationId
+          ? {
+              ...a,
+              status: 'REJECTED',
+              adminNotes: notes || 'Information did not satisfy compliance requirements.',
+              reviewedAt: new Date().toISOString(),
+              reviewedBy: 'Admin',
+            }
+          : a
+      )
+    );
+
+    // Update user state
+    setAllUsers((prevUsers) =>
+      prevUsers.map((u) => {
+        if (u.id === app.userId) {
+          const updated = {
+            ...u,
+            agencyStatus: 'rejected' as const,
+            pendingAgencyName: undefined,
+          };
+          if (currentUser.id === u.id) setCurrentUser(updated);
+          return updated;
+        }
+        return u;
+      })
+    );
+
+    if (currentUser.id === app.userId) {
+      setCurrentUser((prev) => ({
+        ...prev,
+        agencyStatus: 'rejected',
+        pendingAgencyName: undefined,
+      }));
+    }
+
+    // Audit Log
+    const audit: AdminAuditLog = {
+      id: `audit_${Date.now()}`,
+      adminId: 'ADMIN_SUPER',
+      adminName: 'Operations Lead',
+      action: 'REJECT_AGENCY_APPLICATION',
+      targetType: 'agency',
+      targetId: applicationId,
+      details: `Rejected agency application for "${app.agencyName}". Reason: ${notes || 'Verification failed'}`,
+      ipAddress: '127.0.0.1',
+      timestamp: new Date().toISOString(),
+    };
+    setAuditLogs((prev) => [audit, ...prev]);
+
+    // Send notification
+    const notif: NotificationItem = {
+      id: `notif_${Date.now()}`,
+      userId: app.userId,
+      type: 'system',
+      title: 'Agency Application Declined',
+      message: `Your application for agency "${app.agencyName}" was declined. Reason: ${notes || 'Verification criteria not met'}. You may resubmit with valid details.`,
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    };
+    setNotifications((prev) => [notif, ...prev]);
+  };
+
+  const createHostAgency = async (
+    agencyName: string,
+    extraDetails?: {
+      country?: string;
+      phone?: string;
+      address?: string;
+      idCardFront?: string;
+      idCardBack?: string;
+    }
+  ) => {
+    return submitAgencyApplication({
+      agencyName,
+      country: extraDetails?.country || currentUser.country || 'Global',
+      phone: extraDetails?.phone || currentUser.phone || '',
+      address: extraDetails?.address || 'Verified Address',
+      idCardFront: extraDetails?.idCardFront || 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600&auto=format&fit=crop&q=80',
+      idCardBack: extraDetails?.idCardBack || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80',
+      commissionRate: 0.15,
+    });
+  };
+
+  const joinHostAgency = async (agencyId: string) => {
+    if (currentUser.isHostAgency || currentUser.hostAgencyId) {
+      return { success: false, message: 'You are already in an agency.' };
+    }
+    
+    const targetAgency = allUsers.find(u => u.isHostAgency && u.id === agencyId);
+    if (!targetAgency) {
+      return { success: false, message: 'Agency not found.' };
+    }
+
+    setAllUsers(prevUsers => prevUsers.map(u => {
+      if (u.id === currentUser.id) {
+        const updatedUser = { ...u, hostAgencyId: agencyId, role: (u.role === 'user' ? 'host' : u.role) as any };
+        if (currentUser.id === u.id) setCurrentUser(updatedUser);
+        return updatedUser;
+      }
+      if (u.id === agencyId && u.hostAgencyInfo) {
+        return {
+          ...u,
+          hostAgencyInfo: {
+            ...u.hostAgencyInfo,
+            totalHosts: u.hostAgencyInfo.totalHosts + 1
+          }
+        };
+      }
+      return u;
+    }));
+
+    return { success: true, message: 'Joined agency successfully!' };
+  };
+
+  const leaveHostAgency = async () => {
+    if (!currentUser.hostAgencyId) {
+      return { success: false, message: 'Not in an agency.' };
+    }
+    
+    const agencyId = currentUser.hostAgencyId;
+
+    setAllUsers(prevUsers => prevUsers.map(u => {
+      if (u.id === currentUser.id) {
+        const updatedUser = { ...u, hostAgencyId: undefined };
+        if (currentUser.id === u.id) setCurrentUser(updatedUser);
+        return updatedUser;
+      }
+      if (u.id === agencyId && u.hostAgencyInfo) {
+        return {
+          ...u,
+          hostAgencyInfo: {
+            ...u.hostAgencyInfo,
+            totalHosts: Math.max(0, u.hostAgencyInfo.totalHosts - 1)
+          }
+        };
+      }
+      return u;
+    }));
+
+    return { success: true, message: 'Left agency successfully.' };
   };
 
   const adminPromoteToHostAgency = (userId: string, agencyName: string, commissionRate: number) => {
@@ -2058,9 +3173,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // MISSIONS
-  const claimMissionReward = (missionId: string) => {
+  const claimMissionReward = (missionId: string): { success: boolean; message: string } => {
     const mission = missions.find((m) => m.id === missionId);
-    if (!mission || mission.isClaimed || mission.currentCount < mission.targetCount) return;
+    if (!mission) return { success: false, message: 'Mission not found' };
+    if (mission.isClaimed) return { success: false, message: 'Reward already claimed' };
+    if (mission.currentCount < mission.targetCount) return { success: false, message: 'Mission goal not reached yet' };
 
     if (mission.rewardType === 'coins') {
       setCurrentUser((prev) => ({ ...prev, coins: prev.coins + mission.rewardAmount }));
@@ -2072,6 +3189,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setMissions((prev) => prev.map((m) => (m.id === missionId ? { ...m, isClaimed: true } : m)));
     audioEngine.playSoundEffect('level_up');
+    return { success: true, message: `Claimed +${mission.rewardAmount} ${mission.rewardType.toUpperCase()}!` };
   };
 
   // MESSAGING ENGINE
@@ -2082,7 +3200,55 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return existing;
     }
 
-    const partner = allUsers.find((u) => u.id === userId) || INITIAL_USERS[1];
+    const partner = allUsers.find((u) => u.id === userId);
+    if (!partner) {
+      const dummyConv: Conversation = {
+        id: `conv_${Date.now()}`,
+        participant: {
+          id: userId,
+          numericId: '000000',
+          username: 'user',
+          displayName: 'User',
+          email: '',
+          phone: '',
+          bio: '',
+          country: 'Global',
+          countryFlag: '🌐',
+          language: 'English',
+          gender: 'other',
+          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+          role: 'user',
+          level: 1,
+          xp: 0,
+          xpToNextLevel: 1000,
+          vipTier: 'vip_0',
+          coins: 0,
+          diamonds: 0,
+          followersCount: 0,
+          followingCount: 0,
+          visitorsCount: 0,
+          isHost: false,
+          isBanned: false,
+          isMuted: false,
+          fraudScore: 0,
+          createdAt: new Date().toISOString(),
+          lastLoginAt: new Date().toISOString(),
+        },
+        unreadCount: 0,
+        lastMessage: {
+          id: `msg_${Date.now()}`,
+          conversationId: `conv_${Date.now()}`,
+          senderId: userId,
+          receiverId: currentUser.id,
+          message: '',
+          type: 'text',
+          isRead: true,
+          createdAt: new Date().toISOString(),
+        },
+        updatedAt: new Date().toISOString(),
+      };
+      return dummyConv;
+    }
     const newConvId = `conv_${Date.now()}`;
     const welcomeMsg: DirectMessage = {
       id: `msg_${Date.now()}`,
@@ -2125,7 +3291,10 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     let partnerUser = targetConv?.participant;
     if (!partnerUser) {
-      partnerUser = allUsers.find((u) => u.id === receiverIdOrConvId) || INITIAL_USERS[1];
+      partnerUser = allUsers.find((u) => u.id === receiverIdOrConvId);
+    }
+    if (!partnerUser) {
+      return;
     }
 
     const convId = targetConv?.id || `conv_${Date.now()}`;
@@ -2387,6 +3556,186 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       targetType: 'VoiceRoom',
       targetId: roomId,
       details: `Room force-closed by admin. Reason: ${reason}`,
+      ipAddress: '127.0.0.1',
+      timestamp: new Date().toISOString(),
+    };
+    setAuditLogs((prev) => [log, ...prev]);
+  };
+
+  const adminMuteHostInRoom = (roomId: string, hostUserId: string, muteState?: boolean) => {
+    let targetMuteState = muteState;
+    let targetName = 'Host';
+
+    setRooms((prevRooms) =>
+      prevRooms.map((room) => {
+        if (room.id !== roomId) return room;
+
+        const isMainHost = room.hostId === hostUserId || room.host?.id === hostUserId;
+        if (isMainHost) {
+          targetName = room.host?.displayName || 'Host';
+        }
+
+        const updatedSeats = room.seats.map((seat) => {
+          const isSeatHost = seat.userId === hostUserId || seat.user?.id === hostUserId;
+          if (isSeatHost) {
+            targetName = seat.user?.displayName || targetName;
+            const newMuted = targetMuteState !== undefined ? targetMuteState : !seat.isMuted;
+            targetMuteState = newMuted;
+            return {
+              ...seat,
+              isMuted: newMuted,
+              isSpeaking: false,
+              volumeLevel: 0,
+            };
+          }
+          return seat;
+        });
+
+        if (targetMuteState === undefined) {
+          targetMuteState = true;
+        }
+
+        const updatedRoom = {
+          ...room,
+          seats: updatedSeats,
+        };
+
+        if (activeRoom?.id === roomId) {
+          setActiveRoom(updatedRoom);
+        }
+
+        return updatedRoom;
+      })
+    );
+
+    if (currentUser.id === hostUserId && targetMuteState) {
+      audioEngine.stopMicrophoneCapture();
+    }
+
+    setAllUsers((prevUsers) =>
+      prevUsers.map((u) => (u.id === hostUserId ? { ...u, isMuted: !!targetMuteState } : u))
+    );
+
+    const chatMsg: RoomChatMessage = {
+      id: `sys_chat_${Date.now()}`,
+      roomId,
+      senderId: 'ADMIN_CONSOLE',
+      sender: {
+        ...currentUser,
+        displayName: 'Platform Admin',
+      },
+      message: `⚠️ Host ${targetName} was ${targetMuteState ? 'MUTED' : 'UNMUTED'} by platform administration.`,
+      type: 'system',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setRoomChatMessages((prev) => ({
+      ...prev,
+      [roomId]: [...(prev[roomId] || []), chatMsg],
+    }));
+
+    const log: AdminAuditLog = {
+      id: `audit_${Date.now()}`,
+      adminId: currentUser.id,
+      adminName: currentUser.displayName,
+      action: targetMuteState ? 'HOST_MUTED_BY_ADMIN' : 'HOST_UNMUTED_BY_ADMIN',
+      targetType: 'host',
+      targetId: hostUserId,
+      details: `Admin set mute=${targetMuteState} for host ${targetName} in room ${roomId}`,
+      ipAddress: '127.0.0.1',
+      timestamp: new Date().toISOString(),
+    };
+    setAuditLogs((prev) => [log, ...prev]);
+  };
+
+  const adminKickHostFromRoom = (
+    roomId: string,
+    hostUserId: string,
+    reason: string = 'Violation of live audio policies',
+    closeRoomIfMainHost: boolean = false
+  ) => {
+    const targetRoom = rooms.find((r) => r.id === roomId);
+    if (!targetRoom) return;
+
+    const isMainHost = targetRoom.hostId === hostUserId || targetRoom.host?.id === hostUserId;
+    const targetName = isMainHost
+      ? targetRoom.host?.displayName || 'Host'
+      : targetRoom.seats.find((s) => s.userId === hostUserId || s.user?.id === hostUserId)?.user?.displayName || 'Host/Speaker';
+
+    if (isMainHost && closeRoomIfMainHost) {
+      adminCloseRoom(roomId, `Host ejected: ${reason}`);
+      return;
+    }
+
+    setRooms((prevRooms) =>
+      prevRooms.map((room) => {
+        if (room.id !== roomId) return room;
+
+        const updatedSeats = room.seats.map((seat) => {
+          if (seat.userId === hostUserId || seat.user?.id === hostUserId) {
+            return {
+              ...seat,
+              userId: null,
+              user: null,
+              isSpeaking: false,
+              isMuted: false,
+              volumeLevel: 0,
+            };
+          }
+          return seat;
+        });
+
+        const newAudienceCount = Math.max(0, room.audienceCount - 1);
+        const updatedRoom = {
+          ...room,
+          seats: updatedSeats,
+          audienceCount: newAudienceCount,
+        };
+
+        if (activeRoom?.id === roomId) {
+          if (currentUser.id === hostUserId) {
+            audioEngine.stopMicrophoneCapture();
+            setActiveRoom(null);
+          } else {
+            setActiveRoom(updatedRoom);
+          }
+        }
+
+        return updatedRoom;
+      })
+    );
+
+    if (activeRoom?.id === roomId && currentUser.id === hostUserId) {
+      audioEngine.stopMicrophoneCapture();
+      setActiveRoom(null);
+    }
+
+    const chatMsg: RoomChatMessage = {
+      id: `sys_chat_${Date.now()}`,
+      roomId,
+      senderId: 'ADMIN_CONSOLE',
+      sender: {
+        ...currentUser,
+        displayName: 'Platform Admin',
+      },
+      message: `🚫 Host ${targetName} was KICKED from the stage by Administrator. Reason: ${reason}`,
+      type: 'system',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setRoomChatMessages((prev) => ({
+      ...prev,
+      [roomId]: [...(prev[roomId] || []), chatMsg],
+    }));
+
+    const log: AdminAuditLog = {
+      id: `audit_${Date.now()}`,
+      adminId: currentUser.id,
+      adminName: currentUser.displayName,
+      action: 'HOST_KICKED_BY_ADMIN',
+      targetType: 'host',
+      targetId: hostUserId,
+      details: `Admin kicked host ${targetName} from room "${targetRoom.title}" (${roomId}). Reason: ${reason}`,
       ipAddress: '127.0.0.1',
       timestamp: new Date().toISOString(),
     };
@@ -2695,10 +4044,571 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setAuditLogs((prev) => [log, ...prev]);
   };
 
+  // Store Items Admin Operations
+  const adminAddStoreItem = (itemData: Omit<StoreItem, 'id'> | Partial<StoreItem>) => {
+    const newItem: StoreItem = {
+      id: (itemData as any).id || `${itemData.category || 'item'}_${Date.now()}`,
+      category: itemData.category || 'frames',
+      name: itemData.name || 'New Store Asset',
+      description: itemData.description || 'Exclusive store asset item',
+      icon: itemData.icon || '✨',
+      previewClass: itemData.previewClass || '',
+      badgeTag: itemData.badgeTag,
+      rarity: itemData.rarity || 'Rare',
+      price7Days: Number(itemData.price7Days) || 300,
+      price30Days: Number(itemData.price30Days) || 900,
+      pricePermanent: Number(itemData.pricePermanent) || 2500,
+      soundEffect: itemData.soundEffect,
+      requiredVip: itemData.requiredVip,
+      glowColor: itemData.glowColor || 'purple',
+      themeGradient: itemData.themeGradient || 'from-violet-600 to-indigo-600',
+      status: itemData.status || 'active',
+      salesCount: itemData.salesCount || 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    setStoreItems((prev) => [newItem, ...prev]);
+
+    const log: AdminAuditLog = {
+      id: `audit_${Date.now()}`,
+      adminId: currentUser.id,
+      adminName: currentUser.displayName,
+      action: 'STORE_ITEM_CREATED',
+      targetType: 'StoreItem',
+      targetId: newItem.id,
+      details: `Created new ${newItem.category} item "${newItem.name}" (${newItem.pricePermanent} coins perm)`,
+      ipAddress: '127.0.0.1',
+      timestamp: new Date().toISOString(),
+    };
+    setAuditLogs((prev) => [log, ...prev]);
+  };
+
+  const adminUpdateStoreItem = (itemId: string, updates: Partial<StoreItem>) => {
+    setStoreItems((prev) =>
+      prev.map((item) =>
+        item.id === itemId
+          ? { ...item, ...updates, updatedAt: new Date().toISOString() }
+          : item
+      )
+    );
+
+    const log: AdminAuditLog = {
+      id: `audit_${Date.now()}`,
+      adminId: currentUser.id,
+      adminName: currentUser.displayName,
+      action: 'STORE_ITEM_UPDATED',
+      targetType: 'StoreItem',
+      targetId: itemId,
+      details: `Updated store item ${itemId}`,
+      ipAddress: '127.0.0.1',
+      timestamp: new Date().toISOString(),
+    };
+    setAuditLogs((prev) => [log, ...prev]);
+  };
+
+  const adminDeleteStoreItem = (itemId: string) => {
+    setStoreItems((prev) => prev.filter((item) => item.id !== itemId));
+
+    const log: AdminAuditLog = {
+      id: `audit_${Date.now()}`,
+      adminId: currentUser.id,
+      adminName: currentUser.displayName,
+      action: 'STORE_ITEM_DELETED',
+      targetType: 'StoreItem',
+      targetId: itemId,
+      details: `Deleted store item ${itemId}`,
+      ipAddress: '127.0.0.1',
+      timestamp: new Date().toISOString(),
+    };
+    setAuditLogs((prev) => [log, ...prev]);
+  };
+
+  const adminToggleStoreItemStatus = (itemId: string, status?: 'active' | 'inactive') => {
+    setStoreItems((prev) =>
+      prev.map((item) => {
+        if (item.id === itemId) {
+          const nextStatus = status !== undefined ? status : (item.status === 'inactive' ? 'active' : 'inactive');
+          return { ...item, status: nextStatus, updatedAt: new Date().toISOString() };
+        }
+        return item;
+      })
+    );
+  };
+
+  // Payment Gateways Admin Operations
+  const adminToggleGateway = (id: string, isEnabled: boolean) => {
+    setPaymentGateways((prev) =>
+      prev.map((g) => (g.id === id ? { ...g, isEnabled, updatedAt: new Date().toISOString() } : g))
+    );
+    const gw = paymentGateways.find((g) => g.id === id);
+    const log: AdminAuditLog = {
+      id: `audit_${Date.now()}`,
+      adminId: currentUser.id,
+      adminName: currentUser.displayName,
+      action: isEnabled ? 'PAYMENT_GATEWAY_ENABLED' : 'PAYMENT_GATEWAY_DISABLED',
+      targetType: 'PaymentGateway',
+      targetId: id,
+      details: `${isEnabled ? 'Enabled' : 'Disabled'} payment gateway: ${gw?.name || id}`,
+      ipAddress: '127.0.0.1',
+      timestamp: new Date().toISOString(),
+    };
+    setAuditLogs((prev) => [log, ...prev]);
+  };
+
+  const adminUpdateGateway = (id: string, updates: Partial<PaymentGatewayConfig>) => {
+    setPaymentGateways((prev) =>
+      prev.map((g) => (g.id === id ? { ...g, ...updates, updatedAt: new Date().toISOString() } : g))
+    );
+    const gw = paymentGateways.find((g) => g.id === id);
+    const log: AdminAuditLog = {
+      id: `audit_${Date.now()}`,
+      adminId: currentUser.id,
+      adminName: currentUser.displayName,
+      action: 'PAYMENT_GATEWAY_UPDATED',
+      targetType: 'PaymentGateway',
+      targetId: id,
+      details: `Updated configuration & credentials for gateway: ${gw?.name || id}`,
+      ipAddress: '127.0.0.1',
+      timestamp: new Date().toISOString(),
+    };
+    setAuditLogs((prev) => [log, ...prev]);
+  };
+
+  const adminTestGatewayPing = async (
+    id: string
+  ): Promise<{ success: boolean; latencyMs: number; message: string }> => {
+    const gw = paymentGateways.find((g) => g.id === id);
+    if (!gw) return { success: false, latencyMs: 0, message: 'Gateway not found' };
+
+    await new Promise((r) => setTimeout(r, 550));
+    const randomLatency = Math.floor(20 + Math.random() * 45);
+    const isSuccess = gw.isEnabled;
+
+    setPaymentGateways((prev) =>
+      prev.map((g) =>
+        g.id === id
+          ? {
+              ...g,
+              lastPingMs: randomLatency,
+              webhookStatus: isSuccess ? 'healthy' : 'degraded',
+            }
+          : g
+      )
+    );
+
+    return {
+      success: isSuccess,
+      latencyMs: randomLatency,
+      message: isSuccess
+        ? `Handshake OK! ${gw.name} responded in ${randomLatency}ms (Status 200).`
+        : `Endpoint reached in ${randomLatency}ms, but gateway is currently disabled in settings.`,
+    };
+  };
+
+  const adminSimulateGatewayTransaction = async (
+    gatewayId: string,
+    amountUsd: number
+  ): Promise<{ success: boolean; log: GatewayWebhookLog }> => {
+    const gw = paymentGateways.find((g) => g.id === gatewayId);
+    const gwName = gw ? gw.name : 'Payment Gateway';
+    await new Promise((r) => setTimeout(r, 650));
+
+    const latency = Math.floor(24 + Math.random() * 36);
+    const newLog: GatewayWebhookLog = {
+      id: `wh_sim_${Date.now()}`,
+      gatewayId,
+      gatewayName: gwName,
+      eventType:
+        gw?.code === 'google_play'
+          ? 'googleplay.order.purchased'
+          : gw?.code === 'apple_app_store'
+          ? 'appstore.v2.did_renew'
+          : gw?.code === 'crypto_usdt'
+          ? 'usdt.deposit.confirmed'
+          : 'payment_intent.succeeded',
+      amountUsd,
+      currency: gw?.settlementCurrency || 'USD',
+      customerId: currentUser.id,
+      customerName: currentUser.displayName,
+      status: 'SUCCESS',
+      ipAddress: '198.51.100.' + Math.floor(10 + Math.random() * 80),
+      latencyMs: latency,
+      timestamp: new Date().toISOString(),
+      payloadSnippet: JSON.stringify({
+        simulated: true,
+        gateway: gwName,
+        chargeId: `ch_${Math.random().toString(36).substring(2, 10)}`,
+        amount: amountUsd,
+        currency: gw?.settlementCurrency || 'USD',
+        status: 'succeeded',
+      }),
+    };
+
+    setGatewayWebhookLogs((prev) => [newLog, ...prev.slice(0, 49)]);
+
+    setPaymentGateways((prev) =>
+      prev.map((g) =>
+        g.id === gatewayId
+          ? {
+              ...g,
+              totalProcessedVolumeUsd: g.totalProcessedVolumeUsd + amountUsd,
+              totalTransactionsCount: g.totalTransactionsCount + 1,
+              lastEventReceivedAt: new Date().toISOString(),
+            }
+          : g
+      )
+    );
+
+    return { success: true, log: newLog };
+  };
+
+  const adminAddPaymentGateway = (gateway: PaymentGatewayConfig) => {
+    setPaymentGateways((prev) => [gateway, ...prev]);
+    const log: AdminAuditLog = {
+      id: `audit_${Date.now()}`,
+      adminId: currentUser.id,
+      adminName: currentUser.displayName,
+      action: 'PAYMENT_GATEWAY_CREATED',
+      targetType: 'PaymentGateway',
+      targetId: gateway.id,
+      details: `Registered new payment gateway: ${gateway.name} (${gateway.category})`,
+      ipAddress: '127.0.0.1',
+      timestamp: new Date().toISOString(),
+    };
+    setAuditLogs((prev) => [log, ...prev]);
+  };
+
+  const adminDeletePaymentGateway = (id: string) => {
+    const gw = paymentGateways.find((g) => g.id === id);
+    setPaymentGateways((prev) => prev.filter((g) => g.id !== id));
+    const log: AdminAuditLog = {
+      id: `audit_${Date.now()}`,
+      adminId: currentUser.id,
+      adminName: currentUser.displayName,
+      action: 'PAYMENT_GATEWAY_DELETED',
+      targetType: 'PaymentGateway',
+      targetId: id,
+      details: `Removed payment gateway: ${gw?.name || id}`,
+      ipAddress: '127.0.0.1',
+      timestamp: new Date().toISOString(),
+    };
+    setAuditLogs((prev) => [log, ...prev]);
+  };
+
+  // Game Operations & Betting Engine
+  const playGameBet = async (
+    gameId: string,
+    betAmount: number,
+    betPayload?: any
+  ): Promise<{
+    success: boolean;
+    isWin: boolean;
+    payoutAmount: number;
+    multiplier: number;
+    resultOutcome: any;
+    isJackpot?: boolean;
+    message: string;
+  }> => {
+    const targetGame = games.find((g) => g.id === gameId);
+    if (!targetGame) {
+      return { success: false, isWin: false, payoutAmount: 0, multiplier: 0, resultOutcome: null, message: 'Game not found' };
+    }
+
+    if (targetGame.status !== 'active') {
+      return {
+        success: false,
+        isWin: false,
+        payoutAmount: 0,
+        multiplier: 0,
+        resultOutcome: null,
+        message: targetGame.status === 'maintenance' ? 'Game is undergoing maintenance' : 'Game is currently disabled',
+      };
+    }
+
+    if (betAmount < targetGame.minBet) {
+      return { success: false, isWin: false, payoutAmount: 0, multiplier: 0, resultOutcome: null, message: `Minimum bet is ${targetGame.minBet.toLocaleString()} coins` };
+    }
+
+    if (betAmount > targetGame.maxBet) {
+      return { success: false, isWin: false, payoutAmount: 0, multiplier: 0, resultOutcome: null, message: `Maximum bet is ${targetGame.maxBet.toLocaleString()} coins` };
+    }
+
+    if (currentUser.coins < betAmount) {
+      return { success: false, isWin: false, payoutAmount: 0, multiplier: 0, resultOutcome: null, message: 'Insufficient coins! Please recharge in store.' };
+    }
+
+    // Deduct bet coins immediately
+    const userCoinsAfterBet = currentUser.coins - betAmount;
+    updateCurrentUserProfile({ coins: userCoinsAfterBet });
+
+    // Determine outcome based on game multipliers and weighted probabilities
+    let chosenMultiplier = targetGame.multipliers[0] || { id: 'm1', label: 'Consolation', multiplier: 0.5, probabilityWeight: 50, color: '#64748B' };
+    const totalWeight = targetGame.multipliers.reduce((acc, m) => acc + (m.probabilityWeight || 10), 0);
+    let randomVal = Math.random() * totalWeight;
+
+    for (const m of targetGame.multipliers) {
+      const weight = m.probabilityWeight || 10;
+      if (randomVal <= weight) {
+        chosenMultiplier = m;
+        break;
+      }
+      randomVal -= weight;
+    }
+
+    let isWin = false;
+    let multiplier = 0;
+    let isJackpot = false;
+    let payoutAmount = 0;
+    let outcomeLabel = chosenMultiplier.label;
+
+    if (gameId === 'greedy_fruits' && betPayload?.selectedFruitId) {
+      if (betPayload.selectedFruitId === chosenMultiplier.id) {
+        isWin = true;
+        multiplier = chosenMultiplier.multiplier;
+        isJackpot = !!chosenMultiplier.isJackpot;
+      } else {
+        isWin = false;
+        multiplier = 0;
+      }
+    } else if (gameId === 'dice_royale' && betPayload?.choice) {
+      const d1 = Math.floor(Math.random() * 6) + 1;
+      const d2 = Math.floor(Math.random() * 6) + 1;
+      const d3 = Math.floor(Math.random() * 6) + 1;
+      const sum = d1 + d2 + d3;
+      const isTriple = d1 === d2 && d2 === d3;
+      outcomeLabel = `Dice: [${d1}, ${d2}, ${d3}] (Sum: ${sum})`;
+
+      if (betPayload.choice === 'triple' && isTriple) {
+        isWin = true;
+        multiplier = 30;
+        isJackpot = d1 === 6;
+      } else if (betPayload.choice === 'small' && sum >= 4 && sum <= 10 && !isTriple) {
+        isWin = true;
+        multiplier = 2;
+      } else if (betPayload.choice === 'big' && sum >= 11 && sum <= 17 && !isTriple) {
+        isWin = true;
+        multiplier = 2;
+      } else {
+        isWin = false;
+        multiplier = 0;
+      }
+    } else if (gameId === 'dragon_tiger' && betPayload?.choice) {
+      const cardValues = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+      const suits = ['♠', '♥', '♣', '♦'];
+      const dragonCard = { val: cardValues[Math.floor(Math.random() * cardValues.length)], suit: suits[Math.floor(Math.random() * suits.length)] };
+      const tigerCard = { val: cardValues[Math.floor(Math.random() * cardValues.length)], suit: suits[Math.floor(Math.random() * suits.length)] };
+      const cardNames = ['', 'A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+      outcomeLabel = `Dragon: ${cardNames[dragonCard.val]}${dragonCard.suit} vs Tiger: ${cardNames[tigerCard.val]}${tigerCard.suit}`;
+
+      if (dragonCard.val === tigerCard.val) {
+        if (betPayload.choice === 'tie') {
+          isWin = true;
+          multiplier = dragonCard.suit === tigerCard.suit ? 50 : 8;
+          isJackpot = dragonCard.suit === tigerCard.suit;
+        } else {
+          isWin = false;
+          multiplier = 0;
+        }
+      } else if (dragonCard.val > tigerCard.val) {
+        isWin = betPayload.choice === 'dragon';
+        multiplier = isWin ? 2 : 0;
+      } else {
+        isWin = betPayload.choice === 'tiger';
+        multiplier = isWin ? 2 : 0;
+      }
+    } else if (gameId === 'rocket_crash' && betPayload?.cashoutMultiplier) {
+      const crashMultiplier = 1.1 + Math.pow(Math.random(), 2.2) * 18;
+      if (betPayload.cashoutMultiplier <= crashMultiplier) {
+        isWin = true;
+        multiplier = Number(betPayload.cashoutMultiplier.toFixed(2));
+        outcomeLabel = `Cashed out at ${multiplier}x (Crash: ${crashMultiplier.toFixed(2)}x)`;
+        isJackpot = multiplier >= 50;
+      } else {
+        isWin = false;
+        multiplier = 0;
+        outcomeLabel = `Crashed at ${crashMultiplier.toFixed(2)}x`;
+      }
+    } else {
+      multiplier = chosenMultiplier.multiplier;
+      isWin = multiplier > 0;
+      isJackpot = !!chosenMultiplier.isJackpot;
+    }
+
+    // Calculate payout
+    if (isWin) {
+      payoutAmount = Math.round(betAmount * multiplier);
+      if (isJackpot) {
+        const bonusJackpot = Math.round(targetGame.jackpotPool * 0.5);
+        payoutAmount += bonusJackpot;
+      }
+      const finalCoins = userCoinsAfterBet + payoutAmount;
+      updateCurrentUserProfile({ coins: finalCoins });
+
+      // Add double entry transaction
+      const winTx: WalletTransaction = {
+        id: `tx_gw_${Date.now()}`,
+        userId: currentUser.id,
+        type: 'mission_reward',
+        currency: 'COINS',
+        amount: payoutAmount,
+        direction: 'CREDIT',
+        balanceAfter: finalCoins,
+        referenceId: `game_${gameId}`,
+        description: `Game Win: ${targetGame.name} (${multiplier}x) ${isJackpot ? '🏆 JACKPOT' : ''}`,
+        status: 'SUCCESS',
+        createdAt: new Date().toISOString(),
+      };
+      setTransactions((prev) => [winTx, ...prev]);
+
+      if (isJackpot) {
+        audioEngine.playSoundEffect('fanfare');
+        confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 } });
+        const jackpotWinner: GameJackpotWinner = {
+          id: `jw_${Date.now()}`,
+          gameId: targetGame.id,
+          gameName: targetGame.name,
+          userName: currentUser.displayName,
+          userAvatar: currentUser.avatar,
+          jackpotAmount: payoutAmount,
+          timestamp: 'Just now',
+        };
+        setRecentJackpotWinners((prev) => [jackpotWinner, ...prev.slice(0, 19)]);
+      } else if (multiplier >= 10) {
+        audioEngine.playSoundEffect('magic');
+        confetti({ particleCount: 60, spread: 50, origin: { y: 0.7 } });
+      } else {
+        audioEngine.playSoundEffect('chime');
+      }
+    }
+
+    // Update game statistics
+    const jackpotContribution = Math.round(betAmount * (targetGame.jackpotContributionPercent / 100));
+    setGames((prev) =>
+      prev.map((g) => {
+        if (g.id === gameId) {
+          const newJackpot = isJackpot ? Math.max(50000, Math.round(g.jackpotPool * 0.5)) : g.jackpotPool + jackpotContribution;
+          return {
+            ...g,
+            totalBetsCount: g.totalBetsCount + 1,
+            totalWageredCoins: g.totalWageredCoins + betAmount,
+            totalPayoutCoins: g.totalPayoutCoins + payoutAmount,
+            jackpotPool: newJackpot,
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return g;
+      })
+    );
+
+    // Record game history item
+    const historyItem: GameBetHistoryItem = {
+      id: `gh_${Date.now()}`,
+      gameId: targetGame.id,
+      gameName: targetGame.name,
+      userId: currentUser.id,
+      userName: currentUser.displayName,
+      userAvatar: currentUser.avatar,
+      betAmount,
+      payoutAmount,
+      multiplier,
+      resultOutcome: outcomeLabel,
+      isWin,
+      isJackpot,
+      timestamp: 'Just now',
+    };
+    setGameHistory((prev) => [historyItem, ...prev.slice(0, 49)]);
+
+    return {
+      success: true,
+      isWin,
+      payoutAmount,
+      multiplier,
+      resultOutcome: chosenMultiplier,
+      isJackpot,
+      message: isWin
+        ? `Won ${payoutAmount.toLocaleString()} Coins! (${multiplier}x)`
+        : `Better luck next spin!`,
+    };
+  };
+
+  const adminAddGame = (
+    gameData: Omit<GameItem, 'id' | 'createdAt' | 'updatedAt' | 'totalBetsCount' | 'totalWageredCoins' | 'totalPayoutCoins' | 'totalPlayers'>
+  ) => {
+    const newGame: GameItem = {
+      ...gameData,
+      id: `game_${Date.now()}`,
+      totalBetsCount: 0,
+      totalWageredCoins: 0,
+      totalPayoutCoins: 0,
+      totalPlayers: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setGames((prev) => [newGame, ...prev]);
+
+    const log: AdminAuditLog = {
+      id: `audit_${Date.now()}`,
+      adminId: currentUser.id,
+      adminName: currentUser.displayName,
+      action: 'GAME_CREATED',
+      targetType: 'Game',
+      targetId: newGame.id,
+      details: `Created game: ${newGame.name} (RTP: ${newGame.rtpPercent}%, Min: ${newGame.minBet}, Max: ${newGame.maxBet})`,
+      ipAddress: '127.0.0.1',
+      timestamp: new Date().toISOString(),
+    };
+    setAuditLogs((prev) => [log, ...prev]);
+  };
+
+  const adminUpdateGame = (gameId: string, updates: Partial<GameItem>) => {
+    setGames((prev) =>
+      prev.map((g) => (g.id === gameId ? { ...g, ...updates, updatedAt: new Date().toISOString() } : g))
+    );
+    const log: AdminAuditLog = {
+      id: `audit_${Date.now()}`,
+      adminId: currentUser.id,
+      adminName: currentUser.displayName,
+      action: 'GAME_CONFIG_UPDATED',
+      targetType: 'Game',
+      targetId: gameId,
+      details: `Updated configuration for game: ${gameId}`,
+      ipAddress: '127.0.0.1',
+      timestamp: new Date().toISOString(),
+    };
+    setAuditLogs((prev) => [log, ...prev]);
+  };
+
+  const adminToggleGameStatus = (gameId: string, status: 'active' | 'maintenance' | 'disabled') => {
+    adminUpdateGame(gameId, { status });
+  };
+
+  const adminDeleteGame = (gameId: string) => {
+    const game = games.find((g) => g.id === gameId);
+    setGames((prev) => prev.filter((g) => g.id !== gameId));
+    const log: AdminAuditLog = {
+      id: `audit_${Date.now()}`,
+      adminId: currentUser.id,
+      adminName: currentUser.displayName,
+      action: 'GAME_DELETED',
+      targetType: 'Game',
+      targetId: gameId,
+      details: `Removed game: ${game?.name || gameId}`,
+      ipAddress: '127.0.0.1',
+      timestamp: new Date().toISOString(),
+    };
+    setAuditLogs((prev) => [log, ...prev]);
+  };
+
+  const adminAdjustJackpot = (gameId: string, newPoolAmount: number) => {
+    adminUpdateGame(gameId, { jackpotPool: newPoolAmount });
+  };
+
   return (
     <StateContext.Provider
       value={{
         currentUser,
+        isGuest: !!currentUser.isGuest || currentUser.id === 'user-guest',
         allUsers,
         rooms,
         activeRoom,
@@ -2714,6 +4624,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         activeConversation,
         notifications,
         hostApplications,
+        agencyApplications,
         withdrawals,
         reports,
         fraudEvents,
@@ -2728,10 +4639,17 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         luckyBackupProgresses,
         luckyBackupTransactions,
         transferCoinsAsSeller,
+        updateBuyerRequestStatus,
         submitBuyerCoinRequest,
         updateSellerProfileSettings,
         updateHostAgencySettings,
         adminPromoteToHostAgency,
+        submitAgencyApplication,
+        adminApproveAgencyApplication,
+        adminRejectAgencyApplication,
+        createHostAgency,
+        joinHostAgency,
+        leaveHostAgency,
         applyForSellerRole,
         quickUpgradeToDemoSeller,
         adminToggleSellerStatus,
@@ -2752,6 +4670,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         switchDemoUser: switchUser,
         updateUserProfile,
         updateCurrentUserProfile: updateUserProfile,
+        followedUserIds,
+        isUserFollowed,
         toggleFollowUser,
         bindCpPartner,
         removeCpPartner,
@@ -2760,6 +4680,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         leaveRoom,
         minimizeRoom,
         takeSeat,
+        moveSeat,
         leaveSeat,
         toggleMuteSeat,
         hostLockSeat,
@@ -2773,11 +4694,18 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         likeRoom,
         sendRoomChatMessage,
         playRoomDJEffect,
+        unlockedRoomThemeIds,
+        isRoomThemeUnlocked,
+        unlockRoomTheme,
+        hostChangeRoomTheme,
         sendGift,
         triggerComboGift,
         resetCombo,
         purchaseCoinPackage,
         subscribeVIP,
+        storeItems,
+        buyStoreItem,
+        equipStoreItem,
         requestHostWithdrawal,
         applyForHost,
         claimMissionReward,
@@ -2788,6 +4716,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         markConversationAsRead,
         markNotificationAsRead,
         markAllNotificationsRead,
+        markAllNotificationsAsRead: markAllNotificationsRead,
         adminStats,
         adminUpdateUserProfile,
         adminUpdateUserBalance,
@@ -2804,6 +4733,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         adminApproveWithdrawal,
         adminRejectWithdrawal,
         adminCloseRoom,
+        adminMuteHostInRoom,
+        adminKickHostFromRoom,
         adminSaveGift,
         adminAddGift,
         adminUpdateGift,
@@ -2814,6 +4745,27 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         adminAddLuckyBackupMilestone,
         adminUpdateLuckyBackupMilestone,
         adminDeleteLuckyBackupMilestone,
+        adminAddStoreItem,
+        adminUpdateStoreItem,
+        adminDeleteStoreItem,
+        adminToggleStoreItemStatus,
+        paymentGateways,
+        gatewayWebhookLogs,
+        adminToggleGateway,
+        adminUpdateGateway,
+        adminTestGatewayPing,
+        adminSimulateGatewayTransaction,
+        adminAddPaymentGateway,
+        adminDeletePaymentGateway,
+        games,
+        gameHistory,
+        recentJackpotWinners,
+        playGameBet,
+        adminAddGame,
+        adminUpdateGame,
+        adminToggleGameStatus,
+        adminDeleteGame,
+        adminAdjustJackpot,
         dismissGiftAnimation: clearGiftAnimation,
         clearGiftAnimation,
       }}

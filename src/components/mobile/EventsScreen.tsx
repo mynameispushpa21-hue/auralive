@@ -11,7 +11,7 @@ export const EventsScreen: React.FC<EventsScreenProps> = ({ onJoinRoom, onBack }
   const { events, rooms } = useAppState();
 
   return (
-    <div id="events-screen" className="flex flex-col gap-4 pb-20 px-4 text-slate-100 bg-[#0B0B0F]">
+    <div id="events-screen" className="flex flex-col gap-4 pb-20 px-4 text-slate-100 bg-transparent">
       <div className="mt-2 flex items-center gap-2.5">
         {onBack && (
           <button

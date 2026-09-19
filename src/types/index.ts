@@ -36,6 +36,10 @@ export interface UserProfile {
   experiencePoints?: number;
   numericId?: string;
   likesReceived?: number;
+  muteRemainingHours?: number;
+  isOnline?: boolean;
+  isFollowing?: boolean;
+  isFollowedBy?: boolean;
   vipTier: VIPLevelId;
   cpPartnerId?: string;
   cpLevel?: number;
@@ -56,6 +60,8 @@ export interface UserProfile {
   sellerInfo?: SellerProfile;
   isHostAgency?: boolean;
   hostAgencyInfo?: HostAgencyProfile;
+  agencyStatus?: 'none' | 'pending' | 'approved' | 'rejected';
+  pendingAgencyName?: string;
   isBanned: boolean;
   isMuted: boolean;
   isGuest?: boolean;
@@ -65,6 +71,44 @@ export interface UserProfile {
   badgeTitle?: string;
   roomCover?: string;
   avatarFrame?: string;
+  equippedRide?: string;
+  equippedBubble?: string;
+  equippedEntryEffect?: string;
+  equippedSound?: string;
+  equippedWave?: string;
+  ownedFrames?: string[];
+  ownedRides?: string[];
+  ownedBubbles?: string[];
+  ownedBadges?: string[];
+  ownedEntryEffects?: string[];
+  ownedSounds?: string[];
+  ownedWaves?: string[];
+}
+
+export type StoreItemCategory = 'frames' | 'rides' | 'sounds' | 'waves' | 'bubbles' | 'badges' | 'effects' | 'thrones';
+
+export type ItemDuration = '7d' | '30d' | 'perm';
+
+export interface StoreItem {
+  id: string;
+  category: StoreItemCategory;
+  name: string;
+  description: string;
+  icon: string;
+  previewClass?: string;
+  badgeTag?: 'HOT' | 'NEW' | 'EXCLUSIVE' | 'VIP' | 'POPULAR';
+  rarity: 'Common' | 'Rare' | 'Epic' | 'Legendary' | 'Mythic';
+  price7Days: number;
+  price30Days: number;
+  pricePermanent: number;
+  soundEffect?: 'engine' | 'fanfare' | 'magic' | 'explosion' | 'chime' | 'cheer' | 'airhorn' | 'applause';
+  requiredVip?: VIPLevelId;
+  glowColor?: string;
+  themeGradient?: string;
+  status?: 'active' | 'inactive';
+  salesCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface SellerPaymentMethod {
@@ -87,12 +131,17 @@ export interface HostAgencyProfile {
   status: 'active' | 'suspended';
   contactEmail?: string;
   contactPhone?: string;
+  country?: string;
+  address?: string;
+  idCardFront?: string;
+  idCardBack?: string;
+  reviewStatus?: 'pending' | 'approved' | 'rejected';
 }
 
 export interface SellerProfile {
   sellerId: string;
   agencyName: string;
-  verificationLevel: 'gold' | 'diamond' | 'master';
+  verificationLevel: 'gold' | 'diamond' | 'master' | 'standard';
   isOfficialVerified: boolean;
   rating: number; // e.g. 4.95
   totalTrades: number;
@@ -188,8 +237,22 @@ export interface MicSeat {
   isMuted: boolean;
   isLocked: boolean;
   isSpeaking: boolean;
-  volumeLevel: number; // 0 to 100
+  volumeLevel: number;
+  receivedDiamonds?: number;
   joinedAt?: string;
+}
+
+export interface RoomTheme {
+  id: string;
+  name: string;
+  category: 'free' | 'premium' | 'luxury';
+  priceDiamonds: number;
+  gradientClass: string;
+  previewGradient: string;
+  accentColor: string;
+  description: string;
+  badge?: string;
+  isAnimated?: boolean;
 }
 
 export interface VoiceRoom {
@@ -199,6 +262,7 @@ export interface VoiceRoom {
   category: 'Music' | 'Chat' | 'Gaming' | 'Dating' | 'Karaoke' | 'Chill' | 'Talent' | 'Language';
   coverUrl: string;
   backgroundTheme: string;
+  themeId?: string;
   hostId: string;
   host: UserProfile;
   coHostIds: string[];
@@ -335,13 +399,20 @@ export type TransactionType =
   | 'gift_sent'
   | 'gift_received'
   | 'vip_subscription'
+  | 'store_item_purchase'
   | 'host_payout_withdrawal'
   | 'mission_reward'
   | 'event_reward'
   | 'admin_adjustment'
   | 'refund'
   | 'reseller_transfer_sent'
-  | 'reseller_transfer_received';
+  | 'reseller_transfer_received'
+  | 'COIN_PURCHASE'
+  | 'GIFT_SENT'
+  | 'GIFT_RECEIVED'
+  | 'DIAMOND_WITHDRAWAL'
+  | 'VIP_PURCHASE'
+  | 'LUCKY_BACKUP_CONVERSION';
 
 export interface WalletTransaction {
   id: string;
@@ -369,7 +440,25 @@ export interface HostApplication {
   language: string;
   introduction: string;
   sampleAudioUrl?: string;
-  status: 'pending' | 'approved' | 'rejected' | 'suspended';
+  status: 'pending' | 'approved' | 'rejected' | 'suspended' | 'PENDING' | 'APPROVED' | 'REJECTED';
+  adminNotes?: string;
+  reviewedBy?: string;
+  submittedAt: string;
+  reviewedAt?: string;
+}
+
+export interface AgencyApplication {
+  id: string;
+  userId: string;
+  user: UserProfile;
+  agencyName: string;
+  country: string;
+  phone: string;
+  address: string;
+  idCardFront: string;
+  idCardBack: string;
+  commissionRate: number; // e.g. 0.15 (15%)
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
   adminNotes?: string;
   reviewedBy?: string;
   submittedAt: string;
@@ -428,8 +517,13 @@ export interface DailyMission {
   category: 'daily' | 'weekly' | 'achievement';
   targetCount: number;
   currentCount: number;
+  progress?: number;
+  target?: number;
+  type?: string;
   rewardType: 'coins' | 'diamonds' | 'xp' | 'vip_points';
   rewardAmount: number;
+  rewardCoins?: number;
+  rewardXp?: number;
   isClaimed: boolean;
   iconName: string;
 }
@@ -445,6 +539,7 @@ export interface PlatformEvent {
   prizePoolUsd: number;
   status: 'upcoming' | 'active' | 'ended';
   rules: string[];
+  leaderboard?: any[];
   topParticipants: {
     userId: string;
     username: string;
@@ -509,6 +604,7 @@ export interface NotificationItem {
   title: string;
   message: string;
   isRead: boolean;
+  body?: string;
   avatar?: string;
   link?: string;
   createdAt: string;
@@ -578,3 +674,151 @@ export interface AdminAuditLog {
   ipAddress: string;
   timestamp: string;
 }
+
+export type PaymentGatewayType = 
+  | 'google_play'
+  | 'apple_app_store'
+  | 'stripe'
+  | 'paypal'
+  | 'razorpay'
+  | 'crypto_usdt'
+  | 'bank_transfer'
+  | 'custom';
+
+export type GatewayCategory = 
+  | 'in_app_purchase'
+  | 'card_processor'
+  | 'digital_wallet'
+  | 'crypto_web3'
+  | 'bank_direct';
+
+export interface PaymentGatewayCredentials {
+  publishableKey?: string;
+  secretKey?: string;
+  webhookSecret?: string;
+  merchantId?: string;
+  clientId?: string;
+  clientSecret?: string;
+  appStoreSharedSecret?: string;
+  serviceAccountEmail?: string;
+  serviceAccountKeyJson?: string;
+  cryptoWalletAddress?: string;
+  cryptoSupportedNetworks?: string[];
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  bankIban?: string;
+  bankSwift?: string;
+  bankName?: string;
+}
+
+export interface PaymentGatewayConfig {
+  id: string;
+  name: string;
+  code: PaymentGatewayType | string;
+  category: GatewayCategory;
+  iconName: string; // 'GooglePlay' | 'Apple' | 'CreditCard' | 'PayPal' | 'IndianRupee' | 'Bitcoin' | 'Building2'
+  description: string;
+  isEnabled: boolean;
+  isSandbox: boolean;
+  settlementCurrency: string;
+  feePercent: number; // e.g. 2.9 (2.9%)
+  feeFixedUsd: number; // e.g. 0.30 ($0.30)
+  minAmountUsd: number;
+  maxAmountUsd: number;
+  supportedCurrencies: string[];
+  credentials: PaymentGatewayCredentials;
+  webhookUrl: string;
+  webhookStatus: 'healthy' | 'degraded' | 'failing' | 'unconfigured';
+  lastPingMs?: number;
+  lastEventReceivedAt?: string;
+  totalProcessedVolumeUsd: number;
+  totalTransactionsCount: number;
+  successRatePercent: number;
+  chargebackRatePercent: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GatewayWebhookLog {
+  id: string;
+  gatewayId: string;
+  gatewayName: string;
+  eventType: string;
+  amountUsd: number;
+  currency: string;
+  customerId: string;
+  customerName: string;
+  status: 'SUCCESS' | 'FAILED' | 'PENDING' | 'REFUNDED';
+  ipAddress: string;
+  latencyMs: number;
+  timestamp: string;
+  payloadSnippet: string;
+}
+
+// Mini-Games and Admin Game Management System
+export type GameCategory = 'all' | 'casino' | 'slots' | 'wheel' | 'crash' | 'dice' | 'cards' | 'arcade';
+
+export interface GameMultiplierSegment {
+  id: string;
+  label: string;
+  multiplier: number;
+  probabilityWeight: number; // For simulation
+  color: string;
+  icon?: string;
+  isJackpot?: boolean;
+}
+
+export interface GameItem {
+  id: string;
+  name: string;
+  category: GameCategory;
+  description: string;
+  icon: string;
+  bannerUrl: string;
+  themeColor: string;
+  isHot?: boolean;
+  isJackpotGame?: boolean;
+  badgeTag?: 'HOT' | 'JACKPOT' | 'NEW' | 'POPULAR' | 'FEATURED';
+  minBet: number;
+  maxBet: number;
+  rtpPercent: number; // Return to player percentage (e.g. 96%)
+  houseEdgePercent: number; // (e.g. 4%)
+  jackpotPool: number;
+  jackpotContributionPercent: number; // % of each bet added to jackpot (e.g. 2%)
+  status: 'active' | 'maintenance' | 'disabled';
+  totalBetsCount: number;
+  totalWageredCoins: number;
+  totalPayoutCoins: number;
+  totalPlayers: number;
+  rules: string[];
+  multipliers: GameMultiplierSegment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GameBetHistoryItem {
+  id: string;
+  gameId: string;
+  gameName: string;
+  userId: string;
+  userName: string;
+  userAvatar: string;
+  betAmount: number;
+  payoutAmount: number;
+  multiplier: number;
+  resultOutcome: string;
+  isWin: boolean;
+  isJackpot?: boolean;
+  timestamp: string;
+}
+
+export interface GameJackpotWinner {
+  id: string;
+  gameId: string;
+  gameName: string;
+  userName: string;
+  userAvatar: string;
+  jackpotAmount: number;
+  timestamp: string;
+}
+

@@ -10,9 +10,13 @@ interface CoinStoreModalProps {
 }
 
 export const CoinStoreModal: React.FC<CoinStoreModalProps> = ({ isOpen, onClose }) => {
-  const { coinPackages, currentUser, purchaseCoinPackage } = useAppState();
+  const { coinPackages, currentUser, purchaseCoinPackage, paymentGateways } = useAppState();
   const [selectedPkgId, setSelectedPkgId] = useState<string>(coinPackages[1]?.id || 'pkg_2');
-  const [paymentMethod, setPaymentMethod] = useState<'Google Play' | 'Credit Card' | 'PayPal' | 'Crypto USDT'>('Google Play');
+
+  const enabledGateways = (paymentGateways || []).filter((g) => g.isEnabled);
+  const defaultMethodName = enabledGateways[0]?.name || 'Google Play Billing';
+
+  const [paymentMethod, setPaymentMethod] = useState<string>(defaultMethodName);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
@@ -128,25 +132,46 @@ export const CoinStoreModal: React.FC<CoinStoreModalProps> = ({ isOpen, onClose 
               Payment Gateway
             </label>
             <div className="grid grid-cols-2 gap-2">
-              {[
-                { name: 'Google Play', icon: '🛒', desc: 'In-app billing' },
-                { name: 'Credit Card', icon: '💳', desc: 'Visa / Mastercard' },
-                { name: 'PayPal', icon: '🅿️', desc: 'Fast checkout' },
-                { name: 'Crypto USDT', icon: '₮', desc: 'Instant Web3' },
-              ].map((m) => (
+              {(enabledGateways.length > 0
+                ? enabledGateways.slice(0, 6).map((gw) => ({
+                    name: gw.name,
+                    icon:
+                      gw.code === 'google_play'
+                        ? '🛒'
+                        : gw.code === 'apple_app_store'
+                        ? '🍎'
+                        : gw.code === 'stripe'
+                        ? '💳'
+                        : gw.code === 'paypal'
+                        ? '🅿️'
+                        : gw.code === 'razorpay'
+                        ? '🇮🇳'
+                        : gw.code === 'crypto_usdt'
+                        ? '₮'
+                        : '🏛️',
+                    desc: gw.isSandbox ? 'Test Sandbox' : gw.category.replace('_', ' '),
+                  }))
+                : [
+                    { name: 'Google Play', icon: '🛒', desc: 'In-app billing' },
+                    { name: 'Credit Card', icon: '💳', desc: 'Visa / Mastercard' },
+                    { name: 'PayPal', icon: '🅿️', desc: 'Fast checkout' },
+                    { name: 'Crypto USDT', icon: '₮', desc: 'Instant Web3' },
+                  ]
+              ).map((m) => (
                 <button
                   key={m.name}
-                  onClick={() => setPaymentMethod(m.name as any)}
-                  className={`p-2.5 rounded-xl border flex items-center gap-2 transition-all ${
+                  type="button"
+                  onClick={() => setPaymentMethod(m.name)}
+                  className={`p-2.5 rounded-xl border flex items-center gap-2 transition-all text-left ${
                     paymentMethod === m.name
-                      ? 'bg-violet-600/20 border-violet-500 text-white'
+                      ? 'bg-violet-600/20 border-violet-500 text-white shadow-xs'
                       : 'bg-[#161620] border-[#232332] text-slate-400 hover:text-slate-200'
                   }`}
                 >
                   <span className="text-lg">{m.icon}</span>
-                  <div className="text-left">
-                    <p className="text-xs font-bold text-slate-200">{m.name}</p>
-                    <p className="text-[10px] text-slate-400">{m.desc}</p>
+                  <div className="text-left overflow-hidden">
+                    <p className="text-xs font-bold text-slate-200 truncate">{m.name}</p>
+                    <p className="text-[10px] text-slate-400 truncate">{m.desc}</p>
                   </div>
                 </button>
               ))}

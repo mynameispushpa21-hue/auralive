@@ -19,7 +19,13 @@ import {
 } from 'lucide-react';
 import { useAppState } from '../../services/stateStore';
 import { audioEngine } from '../../services/audioEngine';
-import { isSupabaseConfigured, SUPABASE_SQL_SCHEMA } from '../../services/supabase';
+import {
+  isSupabaseConfigured,
+  SUPABASE_URL,
+  SUPABASE_SQL_SCHEMA,
+  checkSupabaseHealth,
+  SupabaseHealthResult,
+} from '../../services/supabase';
 
 interface AppSettingsModalProps {
   isOpen: boolean;
@@ -34,6 +40,8 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({ isOpen, onCl
   const [selectedLanguage, setSelectedLanguage] = useState(currentUser.language || 'English');
   const [cacheClearedNotice, setCacheClearedNotice] = useState<string | null>(null);
   const [copiedSchema, setCopiedSchema] = useState(false);
+  const [isCheckingSupabase, setIsCheckingSupabase] = useState(false);
+  const [supabaseStatus, setSupabaseStatus] = useState<SupabaseHealthResult | null>(null);
 
   if (!isOpen) return null;
 
@@ -238,11 +246,64 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({ isOpen, onCl
               </span>
             </div>
 
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              {isSupabaseConfigured
-                ? 'Your app is configured with live Supabase PostgreSQL credentials.'
-                : 'To link a cloud database, add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your environment variables.'}
-            </p>
+            <div className="p-2.5 rounded-xl bg-[#0F0F16] border border-white/5 space-y-1.5">
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-slate-400">Endpoint URL:</span>
+                <span className="font-mono text-emerald-400 truncate max-w-[190px]">{SUPABASE_URL}</span>
+              </div>
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-slate-400">Project ID:</span>
+                <span className="font-mono text-slate-300">rwcwrstsxedipqteqyls</span>
+              </div>
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="text-slate-400">Key Type:</span>
+                <span className="font-mono text-cyan-400">Publishable / Anon</span>
+              </div>
+            </div>
+
+            {/* Test Connection Button */}
+            <button
+              onClick={async () => {
+                setIsCheckingSupabase(true);
+                audioEngine.playSoundEffect('chime');
+                const result = await checkSupabaseHealth();
+                setSupabaseStatus(result);
+                setIsCheckingSupabase(false);
+              }}
+              disabled={isCheckingSupabase}
+              className="w-full py-2 px-3 rounded-xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 flex items-center justify-center gap-2 text-xs font-bold transition-all disabled:opacity-50"
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>{isCheckingSupabase ? 'Testing Connection...' : 'Test Supabase Connection'}</span>
+            </button>
+
+            {supabaseStatus && (
+              <div
+                className={`p-2.5 rounded-xl border text-[10px] space-y-1 ${
+                  supabaseStatus.connected
+                    ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200'
+                    : 'bg-rose-950/40 border-rose-500/30 text-rose-200'
+                }`}
+              >
+                <div className="flex items-center justify-between font-bold">
+                  <span>{supabaseStatus.connected ? '✓ API Reachable & Verified' : '✗ Connection Failed'}</span>
+                  {supabaseStatus.latencyMs !== undefined && (
+                    <span className="font-mono text-[9px] text-emerald-400">{supabaseStatus.latencyMs}ms</span>
+                  )}
+                </div>
+                <p className="text-slate-300 leading-tight">{supabaseStatus.message}</p>
+                {supabaseStatus.tablesFound.length > 0 && (
+                  <div className="text-[9px] text-emerald-400 font-mono">
+                    Active tables: {supabaseStatus.tablesFound.join(', ')}
+                  </div>
+                )}
+                {supabaseStatus.tablesMissing.length > 0 && (
+                  <div className="text-[9px] text-amber-400/90 leading-tight">
+                    Tip: Run the SQL script below in Supabase SQL Editor to create: {supabaseStatus.tablesMissing.join(', ')}
+                  </div>
+                )}
+              </div>
+            )}
 
             <button
               onClick={() => {
@@ -259,6 +320,16 @@ export const AppSettingsModal: React.FC<AppSettingsModalProps> = ({ isOpen, onCl
               </div>
               {copiedSchema && <Check className="w-4 h-4 text-emerald-400" />}
             </button>
+
+            <a
+              href="https://supabase.com/dashboard/project/rwcwrstsxedipqteqyls/editor"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full p-2 rounded-xl bg-[#121217] hover:bg-[#232332] border border-white/10 text-slate-300 hover:text-white flex items-center justify-center gap-1.5 text-[11px] font-medium transition-colors"
+            >
+              <span>Open Supabase SQL Editor</span>
+              <ExternalLink className="w-3.5 h-3.5 text-cyan-400" />
+            </a>
           </div>
 
           {/* About Section */}

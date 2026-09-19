@@ -53,6 +53,7 @@ export const CoinSellerDashboard: React.FC<CoinSellerDashboardProps> = ({
     sellerTransactions,
     buyerRequests,
     transferCoinsAsSeller,
+    updateBuyerRequestStatus,
     updateSellerProfileSettings,
     applyForSellerRole,
     quickUpgradeToDemoSeller,
@@ -83,7 +84,7 @@ export const CoinSellerDashboard: React.FC<CoinSellerDashboardProps> = ({
 
   // History Filter State
   const [historySearch, setHistorySearch] = useState<string>('');
-  const [historyStatusFilter, setHistoryStatusFilter] = useState<'ALL' | 'COMPLETED' | 'PENDING' | 'FLAGGED'>('ALL');
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<'ALL' | 'FULFILLED' | 'PENDING' | 'FLAGGED'>('ALL');
   const [historyDateFilter, setHistoryDateFilter] = useState<'all' | 'today' | 'week'>('all');
   const [selectedTxDetail, setSelectedTxDetail] = useState<SellerTransaction | null>(null);
   const [copiedHash, setCopiedHash] = useState<string | null>(null);
@@ -181,6 +182,14 @@ export const CoinSellerDashboard: React.FC<CoinSellerDashboardProps> = ({
       if (result.success && result.transaction) {
         setTransferSuccess(result.transaction);
         setIsConfirmModalOpen(false);
+        // Auto-fulfill pending requests for this buyer
+        const pendingReq = myBuyerRequests.find(req => 
+           req.status === 'PENDING' && 
+           (req.buyerNumericId === recipientQuery || req.buyerId === recipientQuery)
+        );
+        if (pendingReq) {
+           updateBuyerRequestStatus(pendingReq.id, 'FULFILLED');
+        }
       } else {
         setTransferError(result.message);
         setIsConfirmModalOpen(false);
@@ -550,7 +559,7 @@ export const CoinSellerDashboard: React.FC<CoinSellerDashboardProps> = ({
                     <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
                       type="text"
-                      placeholder="e.g. 894201, usr_002, or LunaValente"
+                      placeholder="Enter Numeric ID, User ID, or Username"
                       value={recipientQuery}
                       onChange={(e) => {
                         setRecipientQuery(e.target.value);
@@ -907,19 +916,34 @@ export const CoinSellerDashboard: React.FC<CoinSellerDashboardProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex gap-2 pt-1">
-                      <button
-                        onClick={() => {
-                          setRecipientQuery(req.buyerNumericId || req.buyerId);
-                          setTransferAmount(req.coinsRequested);
-                          setActiveTab('transfer');
-                        }}
-                        className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-bold text-xs hover:brightness-110 flex items-center justify-center gap-1.5"
-                      >
-                        <Send className="w-3.5 h-3.5" />
-                        Fulfill Transfer Now
-                      </button>
-                    </div>
+                    {req.status === 'PENDING' && (
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          onClick={() => {
+                            setRecipientQuery(req.buyerNumericId || req.buyerId);
+                            setTransferAmount(req.coinsRequested);
+                            setActiveTab('transfer');
+                          }}
+                          className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-bold text-xs hover:brightness-110 flex items-center justify-center gap-1.5"
+                        >
+                          <Send className="w-3 h-3" />
+                          Send Coins
+                        </button>
+                        <button
+                          onClick={() => updateBuyerRequestStatus(req.id, 'FULFILLED')}
+                          className="flex-1 py-2 px-3 rounded-xl bg-emerald-500/20 text-emerald-400 font-bold text-xs hover:bg-emerald-500/30 transition-colors border border-emerald-500/30"
+                        >
+                          <CheckCircle2 className="w-3 h-3 inline mr-1" />
+                          Mark Done
+                        </button>
+                        <button
+                          onClick={() => updateBuyerRequestStatus(req.id, 'CANCELLED')}
+                          className="px-3 py-2 rounded-xl bg-rose-500/20 text-rose-400 font-bold text-xs hover:bg-rose-500/30 transition-colors border border-rose-500/30"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

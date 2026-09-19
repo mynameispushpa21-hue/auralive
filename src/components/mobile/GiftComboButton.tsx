@@ -6,27 +6,44 @@ import { audioEngine } from '../../services/audioEngine';
 
 interface GiftComboButtonProps {
   onOpenCoinStore?: () => void;
+  inline?: boolean;
+  className?: string;
+  size?: 'normal' | 'compact';
+  combo?: any;
+  onComboPress?: () => void;
+  onExpire?: () => void;
 }
 
-export const GiftComboButton: React.FC<GiftComboButtonProps> = ({ onOpenCoinStore }) => {
+export const GiftComboButton: React.FC<GiftComboButtonProps> = ({
+  onOpenCoinStore,
+  inline = false,
+  className,
+  size = 'normal',
+  onComboPress,
+  onExpire,
+}) => {
   const { activeCombo, triggerComboGift, currentUser } = useAppState();
   const [timeLeftMs, setTimeLeftMs] = useState<number>(3000);
   const [isPressing, setIsPressing] = useState(false);
   const [insufficientError, setInsufficientError] = useState(false);
 
   useEffect(() => {
-    if (!activeCombo) return;
+    if (!activeCombo) {
+      if (onExpire) onExpire();
+      return;
+    }
 
     const interval = setInterval(() => {
       const remaining = Math.max(0, activeCombo.expiresAt - Date.now());
       setTimeLeftMs(remaining);
       if (remaining <= 0) {
         clearInterval(interval);
+        if (onExpire) onExpire();
       }
     }, 50);
 
     return () => clearInterval(interval);
-  }, [activeCombo]);
+  }, [activeCombo, onExpire]);
 
   if (!activeCombo) return null;
 
@@ -43,7 +60,7 @@ export const GiftComboButton: React.FC<GiftComboButtonProps> = ({ onOpenCoinStor
         ring: '#f59e0b',
         text: 'text-amber-200',
         icon: '👑 SUPERNOVA',
-        glow: 'shadow-[0_0_30px_rgba(245,158,11,0.8)]',
+        glow: 'shadow-[0_0_25px_rgba(245,158,11,0.8)]',
       };
     }
     if (cnt >= 10) {
@@ -52,7 +69,7 @@ export const GiftComboButton: React.FC<GiftComboButtonProps> = ({ onOpenCoinStor
         ring: '#ec4899',
         text: 'text-pink-200',
         icon: '⚡ MEGA COMBO',
-        glow: 'shadow-[0_0_25px_rgba(236,72,153,0.7)]',
+        glow: 'shadow-[0_0_20px_rgba(236,72,153,0.7)]',
       };
     }
     if (cnt >= 5) {
@@ -61,7 +78,7 @@ export const GiftComboButton: React.FC<GiftComboButtonProps> = ({ onOpenCoinStor
         ring: '#f97316',
         text: 'text-amber-300',
         icon: '🔥 ON FIRE',
-        glow: 'shadow-[0_0_20px_rgba(249,115,22,0.6)]',
+        glow: 'shadow-[0_0_18px_rgba(249,115,22,0.6)]',
       };
     }
     return {
@@ -69,7 +86,7 @@ export const GiftComboButton: React.FC<GiftComboButtonProps> = ({ onOpenCoinStor
       ring: '#8b5cf6',
       text: 'text-violet-200',
       icon: '✨ COMBO',
-      glow: 'shadow-[0_0_15px_rgba(139,92,246,0.5)]',
+      glow: 'shadow-[0_0_14px_rgba(139,92,246,0.5)]',
     };
   };
 
@@ -88,21 +105,37 @@ export const GiftComboButton: React.FC<GiftComboButtonProps> = ({ onOpenCoinStor
     }
 
     setIsPressing(true);
-    setTimeout(() => setIsPressing(false), 150);
-    triggerComboGift();
+    setTimeout(() => setIsPressing(false), 120);
+
+    if (onComboPress) {
+      onComboPress();
+    } else {
+      triggerComboGift();
+    }
   };
 
-  const strokeDashoffset = 125.6 - (125.6 * progressPercent) / 100;
+  const isCompact = size === 'compact' || inline;
+  const outerSize = isCompact ? 'w-16 h-16' : 'w-20 h-20';
+  const buttonSize = isCompact ? 'w-13 h-13' : 'w-16 h-16';
+  const svgRadius = isCompact ? 28 : 34;
+  const svgCenter = isCompact ? 32 : 40;
+  const circumference = 2 * Math.PI * svgRadius;
+  const strokeDashoffset = circumference - (circumference * progressPercent) / 100;
 
   return (
     <AnimatePresence>
       <motion.div
         id="gift-combo-button-widget"
-        initial={{ scale: 0, opacity: 0, y: 30 }}
+        initial={{ scale: 0, opacity: 0, y: inline ? 10 : 30 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0, opacity: 0, y: 30 }}
-        transition={{ type: 'spring', damping: 15, stiffness: 350 }}
-        className="fixed bottom-20 right-4 z-40 flex flex-col items-center select-none"
+        exit={{ scale: 0, opacity: 0, y: inline ? 10 : 30 }}
+        transition={{ type: 'spring', damping: 18, stiffness: 380 }}
+        className={
+          className ||
+          (inline
+            ? 'relative flex flex-col items-center select-none z-30'
+            : 'fixed bottom-20 right-4 z-40 flex flex-col items-center select-none')
+        }
       >
         {/* Insufficient coins warning badge */}
         {insufficientError && (
@@ -110,7 +143,7 @@ export const GiftComboButton: React.FC<GiftComboButtonProps> = ({ onOpenCoinStor
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: -5 }}
             exit={{ opacity: 0 }}
-            className="mb-1.5 px-2.5 py-1 rounded-full bg-rose-600 text-white text-[10px] font-black shadow-lg flex items-center gap-1 border border-rose-300"
+            className="absolute -top-7 px-2 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-black shadow-lg flex items-center gap-1 border border-rose-300 z-50 whitespace-nowrap"
           >
             <span>Need Coins!</span>
             <span className="underline">Recharge</span>
@@ -120,37 +153,41 @@ export const GiftComboButton: React.FC<GiftComboButtonProps> = ({ onOpenCoinStor
         {/* Combo Multiplier Floating Header Badge */}
         <motion.div
           key={`combo-badge-${count}`}
-          initial={{ scale: 1.4, y: -5 }}
+          initial={{ scale: 1.35, y: -4 }}
           animate={{ scale: 1, y: 0 }}
-          className={`px-3 py-0.5 rounded-full text-[11px] font-black tracking-wider uppercase mb-1 bg-slate-950/90 border border-white/20 shadow-md ${style.text} flex items-center gap-1`}
+          className={`px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wider uppercase mb-1 bg-slate-950/95 border border-white/20 shadow-md ${style.text} flex items-center gap-1 z-30 whitespace-nowrap`}
         >
-          {count >= 10 ? <Zap className="w-3 h-3 text-yellow-300 fill-yellow-300 animate-bounce" /> : <Flame className="w-3 h-3 text-orange-400 fill-orange-400 animate-pulse" />}
+          {count >= 10 ? (
+            <Zap className="w-3 h-3 text-yellow-300 fill-yellow-300 animate-bounce" />
+          ) : (
+            <Flame className="w-3 h-3 text-orange-400 fill-orange-400 animate-pulse" />
+          )}
           <span>{style.icon} x{count}</span>
         </motion.div>
 
         {/* Main Circular Combo Button */}
         <div className="relative flex items-center justify-center">
           {/* Radial Countdown Progress Ring */}
-          <svg className="w-20 h-20 transform -rotate-90 pointer-events-none drop-shadow-md">
+          <svg className={`${outerSize} transform -rotate-90 pointer-events-none drop-shadow-md`}>
             {/* Background ring */}
             <circle
-              cx="40"
-              cy="40"
-              r="34"
+              cx={svgCenter}
+              cy={svgCenter}
+              r={svgRadius}
               stroke="#232332"
-              strokeWidth="5"
+              strokeWidth={isCompact ? '4' : '5'}
               fill="transparent"
             />
             {/* Countdown Active Stroke */}
             <circle
-              cx="40"
-              cy="40"
-              r="34"
+              cx={svgCenter}
+              cy={svgCenter}
+              r={svgRadius}
               stroke={style.ring}
-              strokeWidth="5"
+              strokeWidth={isCompact ? '4' : '5'}
               fill="transparent"
-              strokeDasharray="213.6"
-              strokeDashoffset={213.6 - (213.6 * progressPercent) / 100}
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
               strokeLinecap="round"
               className="transition-all duration-75 ease-linear"
             />
@@ -162,20 +199,24 @@ export const GiftComboButton: React.FC<GiftComboButtonProps> = ({ onOpenCoinStor
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.88 }}
             animate={isPressing ? { scale: [1, 0.85, 1.1, 1] } : {}}
-            className={`absolute w-16 h-16 rounded-full bg-gradient-to-tr ${style.bg} ${style.glow} border-2 border-white/40 flex flex-col items-center justify-center text-white cursor-pointer active:brightness-125 transition-shadow`}
+            className={`absolute ${buttonSize} rounded-full bg-gradient-to-tr ${style.bg} ${style.glow} border-2 border-white/40 flex flex-col items-center justify-center text-white cursor-pointer active:brightness-125 transition-shadow`}
             title={`Combo Send ${gift.name} (${gift.coinPrice} 🪙)`}
           >
             {/* Gift Icon */}
-            <span className="text-2xl leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)] animate-pulse">
+            <span
+              className={`${
+                isCompact ? 'text-xl' : 'text-2xl'
+              } leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)] animate-pulse`}
+            >
               {gift.icon}
             </span>
 
             {/* Label */}
             <div className="flex flex-col items-center -mt-0.5">
-              <span className="text-[9px] font-black uppercase tracking-tighter drop-shadow-sm text-yellow-100">
+              <span className="text-[8.5px] font-black uppercase tracking-tighter drop-shadow-sm text-yellow-100">
                 TAP!
               </span>
-              <span className="text-[8px] font-extrabold text-amber-200 opacity-90 leading-none">
+              <span className="text-[7.5px] font-extrabold text-amber-200 opacity-90 leading-none">
                 {gift.coinPrice}🪙
               </span>
             </div>
@@ -183,9 +224,11 @@ export const GiftComboButton: React.FC<GiftComboButtonProps> = ({ onOpenCoinStor
         </div>
 
         {/* Receiver Label */}
-        <div className="mt-1 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-xs border border-white/10 text-[9px] font-semibold text-slate-300 max-w-[90px] truncate text-center">
-          To {activeCombo.receiver.displayName}
-        </div>
+        {!inline && (
+          <div className="mt-1 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-xs border border-white/10 text-[9px] font-semibold text-slate-300 max-w-[90px] truncate text-center">
+            To {activeCombo.receiver.displayName}
+          </div>
+        )}
       </motion.div>
     </AnimatePresence>
   );

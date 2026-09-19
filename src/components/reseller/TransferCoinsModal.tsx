@@ -37,6 +37,8 @@ export const TransferCoinsModal: React.FC<TransferCoinsModalProps> = ({
     allUsers,
     transferCoinsAsSeller,
     quickUpgradeToDemoSeller,
+    buyerRequests,
+    updateBuyerRequestStatus,
   } = useAppState();
 
   const isSeller =
@@ -124,14 +126,26 @@ export const TransferCoinsModal: React.FC<TransferCoinsModalProps> = ({
       if (result.success && result.transaction) {
         setSuccessTx(result.transaction);
         setIsConfirming(false);
+        
+        // Auto-fulfill pending requests for this buyer
+        const pendingReq = buyerRequests.find(req => 
+           req.status === 'PENDING' && req.sellerId === currentUser.id &&
+           (req.buyerNumericId === recipientQuery || req.buyerId === recipientQuery)
+        );
+        if (pendingReq && updateBuyerRequestStatus) {
+           updateBuyerRequestStatus(pendingReq.id, 'FULFILLED');
+        }
+        
         if (onSuccess) onSuccess(result.transaction);
       } else {
         setErrorMessage(result.message);
         setIsConfirming(false);
+        setIsSubmitting(false);
       }
     } catch (err: any) {
       setErrorMessage(err?.message || 'Transfer failed. Please try again.');
       setIsConfirming(false);
+      setIsSubmitting(false);
     } finally {
       setIsSubmitting(false);
     }

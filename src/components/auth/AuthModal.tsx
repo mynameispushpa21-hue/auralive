@@ -249,11 +249,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
-  const handleQuickDemoLogin = (user: typeof allUsers[0]) => {
-    setLoginIdentifier(user.username);
-    setLoginPassword(user.password || 'password123');
-  };
-
   const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -403,38 +398,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {/* ============================================================== */}
           {mode === 'login' && (
             <form onSubmit={handleLogin} className="space-y-3.5">
-              {/* Quick Demo Persona Pickers for Easy Instant Testing */}
-              <div className="p-3 rounded-2xl bg-[#0B0B0F] border border-[#232332]">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-amber-400" /> One-Tap Demo Profiles
-                  </span>
-                  <span className="text-[9px] text-slate-500">Fast Auto-Fill</span>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {allUsers.slice(0, 3).map((user) => (
-                    <button
-                      key={user.id}
-                      type="button"
-                      onClick={() => handleQuickDemoLogin(user)}
-                      className={`p-1.5 rounded-xl border flex flex-col items-center gap-1 text-center transition-all ${
-                        loginIdentifier === user.username
-                          ? 'bg-violet-600/20 border-violet-500 text-white'
-                          : 'bg-[#1A1A24] border-[#232332] text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      <img
-                        src={user.avatar}
-                        alt={user.displayName}
-                        className="w-6 h-6 rounded-full object-cover"
-                      />
-                      <span className="text-[10px] font-bold truncate w-full">{user.displayName.split(' ')[0]}</span>
-                      <span className="text-[8px] text-violet-300 font-semibold">{user.isHost ? '🎤 Host' : user.role === 'super_admin' ? '🛡️ Admin' : user.vipTier.toUpperCase()}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {/* Username / Email Input */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-300 mb-1.5">
@@ -449,7 +412,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     type="text"
                     value={loginIdentifier}
                     onChange={(e) => setLoginIdentifier(e.target.value)}
-                    placeholder="AlexRider or alex@auravoice.live"
+                    placeholder="Enter your username or email"
                     required
                     className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-[#1A1A24] border border-[#232332] text-white text-xs placeholder:text-slate-500 focus:outline-hidden focus:border-violet-500 transition-colors"
                   />

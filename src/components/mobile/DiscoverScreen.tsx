@@ -34,7 +34,7 @@ export const DiscoverScreen: React.FC<DiscoverScreenProps> = ({
   ];
 
   return (
-    <div id="discover-screen" className="flex flex-col gap-4 pb-20 px-4 text-slate-100 bg-[#0B0B0F]">
+    <div id="discover-screen" className="flex flex-col gap-4 pb-20 px-4 text-slate-100 bg-transparent">
       {/* Search Header */}
       <div className="mt-2">
         <h2 className="text-xl font-bold font-display text-white mb-2">Discover Audio Stage</h2>

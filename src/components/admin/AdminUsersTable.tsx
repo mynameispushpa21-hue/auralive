@@ -27,7 +27,7 @@ export const AdminUsersTable: React.FC = () => {
     if (roleFilter !== 'ALL' && u.role !== roleFilter) return false;
     if (search.trim()) {
       const q = search.toLowerCase();
-      return u.displayName.toLowerCase().includes(q) || u.numericId.includes(q) || u.email.toLowerCase().includes(q);
+      return u.displayName.toLowerCase().includes(q) || u.numericId?.includes(q) || u.email.toLowerCase().includes(q);
     }
     return true;
   });

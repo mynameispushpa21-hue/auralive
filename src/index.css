@@ -79,3 +79,25 @@
   animation: rippleEffect 1.8s cubic-bezier(0, 0.2, 0.8, 1) infinite;
 }
 
+/* All Screens Pastel Gradient Background (matching uploaded image) */
+.app-screens-bg {
+  background-color: #c49ec5;
+  background-image: 
+    radial-gradient(ellipse at 50% 53%, rgba(255, 250, 255, 0.5) 0%, rgba(240, 220, 245, 0.2) 35%, transparent 70%),
+    linear-gradient(
+      180deg,
+      #c49ec5 0%,
+      #cfa7cc 16%,
+      #ddb7d9 32%,
+      #e9cae5 46%,
+      #eed5e8 53%,
+      #d1dff3 61%,
+      #7db9e3 72%,
+      #4b9ad6 86%,
+      #3a80c0 100%
+    );
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
+

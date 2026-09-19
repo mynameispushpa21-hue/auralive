@@ -29,13 +29,21 @@ import {
   Radio,
   Star,
   Globe,
+  ShoppingBag,
+  LayoutGrid,
+  Grid2X2,
+  List,
+  Building2,
+  Package,
 } from 'lucide-react';
 import { useAppState } from '../../services/stateStore';
 import { SocialListModal, SocialModalTab } from './SocialListModal';
 import { LevelPrivilegesModal } from './LevelPrivilegesModal';
 import { BackpackModal } from './BackpackModal';
+import { StoreModal } from './StoreModal';
 import { WalletRecordsModal } from './WalletRecordsModal';
 import { AppSettingsModal } from './AppSettingsModal';
+import { AgencyCenterModal } from './AgencyCenterModal';
 import { SellerBadge } from '../reseller/SellerBadge';
 import { audioEngine } from '../../services/audioEngine';
 
@@ -96,9 +104,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const [socialModalTab, setSocialModalTab] = useState<SocialModalTab>('following');
   const [isLevelModalOpen, setIsLevelModalOpen] = useState(false);
   const [isBackpackModalOpen, setIsBackpackModalOpen] = useState(false);
+  const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
+  const [isAgencyCenterOpen, setIsAgencyCenterOpen] = useState(false);
   const [isWalletRecordsOpen, setIsWalletRecordsOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [copiedIdToast, setCopiedIdToast] = useState(false);
+  const [featureLayout, setFeatureLayout] = useState<'grid' | 'compact' | 'list'>('grid');
 
   // Edit form state
   const [editName, setEditName] = useState(currentUser.displayName);
@@ -160,7 +171,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   };
 
   return (
-    <div id="profile-screen" className="flex flex-col gap-4 pb-20 px-4 text-slate-100 bg-[#0B0B0F]">
+    <div id="profile-screen" className="flex flex-col gap-4 pb-20 px-4 text-slate-100 bg-transparent">
       {/* Top Action Buttons (Settings Gear & Edit) */}
       <div className="mt-1 flex items-center justify-between px-1">
         <span className="text-xs font-black uppercase tracking-wider text-slate-400">My Profile</span>
@@ -340,32 +351,47 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
       {/* Quick Wallet Summary Cards */}
       <div className="grid grid-cols-2 gap-2.5">
-        <div className="p-3.5 rounded-2xl bg-[#121217] border border-[#232332] flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-amber-300">My Coins</span>
-            <span className="text-base">🪙</span>
+        <div 
+          className="relative overflow-hidden p-3.5 rounded-2xl border border-white/60 shadow-lg shadow-amber-500/20 flex flex-col justify-between"
+          style={{ background: 'radial-gradient(circle at 55% 55%, #fff000 0%, #ffb300 45%, #ff8c00 75%, #ffdfc4 100%)' }}
+        >
+          {/* Glossy top sheen overlay */}
+          <div className="absolute inset-0 bg-gradient-to-b from-white/40 via-transparent to-black/5 pointer-events-none rounded-2xl" />
+
+          <div className="relative z-10 flex items-center justify-between">
+            <span className="text-xs font-black text-slate-900 tracking-tight">My Coins</span>
+            <span className="text-base drop-shadow-xs">🪙</span>
           </div>
-          <span className="text-lg font-black text-white my-1">{currentUser.coins.toLocaleString()}</span>
+          <span className="relative z-10 text-lg font-black text-slate-950 my-1 tracking-tight">{currentUser.coins.toLocaleString()}</span>
           <button
             onClick={onOpenCoinStore}
-            className="w-full py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs hover:brightness-110 active:scale-98 transition-all"
+            className="relative z-10 w-full py-1.5 rounded-xl bg-slate-950/85 hover:bg-slate-950 text-white font-extrabold text-[11px] flex items-center justify-center gap-1 shadow-sm border border-white/25 hover:brightness-110 active:scale-98 transition-all backdrop-blur-xs"
           >
-            <Plus className="w-3 h-3 stroke-[3]" />
+            <Plus className="w-3 h-3 text-amber-400 stroke-[3]" />
             <span>Recharge Coins</span>
           </button>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-[#121217] border border-[#232332] flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-violet-300">Host Diamonds</span>
-            <span className="text-base">💎</span>
+        <div className="relative overflow-hidden p-3.5 rounded-2xl bg-gradient-to-br from-[#fba794] via-[#b69bf9] to-[#5fe3e8] border border-white/60 shadow-lg shadow-purple-500/20 flex flex-col justify-between">
+          {/* Glossy top sheen overlay */}
+          <div className="absolute inset-0 bg-gradient-to-b from-white/30 via-transparent to-black/5 pointer-events-none rounded-2xl" />
+
+          {/* Sparkle lens flare in bottom-right corner from image */}
+          <div className="absolute bottom-1 right-1.5 pointer-events-none z-10 flex items-center justify-center">
+            <div className="w-5 h-5 bg-white/40 rounded-full blur-[2px] absolute" />
+            <span className="text-white text-xs drop-shadow-[0_0_8px_rgba(255,255,255,0.95)]">✦</span>
           </div>
-          <span className="text-lg font-black text-white my-1">{currentUser.diamonds.toLocaleString()}</span>
+
+          <div className="relative z-10 flex items-center justify-between">
+            <span className="text-xs font-black text-slate-900 tracking-tight">Host Diamonds</span>
+            <span className="text-base drop-shadow-xs">💎</span>
+          </div>
+          <span className="relative z-10 text-lg font-black text-slate-950 my-1 tracking-tight">{currentUser.diamonds.toLocaleString()}</span>
           <button
             onClick={onOpenWithdrawal}
-            className="w-full py-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs hover:brightness-110 active:scale-98 transition-all"
+            className="relative z-10 w-full py-1.5 rounded-xl bg-slate-950/85 hover:bg-slate-950 text-white font-extrabold text-[11px] flex items-center justify-center gap-1 shadow-sm border border-white/25 hover:brightness-110 active:scale-98 transition-all backdrop-blur-xs"
           >
-            <DollarSign className="w-3 h-3" />
+            <DollarSign className="w-3 h-3 text-emerald-300" />
             <span>Cash Payout</span>
           </button>
         </div>
@@ -398,118 +424,535 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </div>
       )}
 
-      {/* Navigation Feature Hubs */}
-      <div className="space-y-2">
-        {/* Coin Reseller & Agent Hub */}
-        <button
-          onClick={onOpenSellerDashboard}
-          className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-[#161622] to-[#121217] border border-amber-500/40 hover:border-amber-400 flex items-center justify-between transition-all group shadow-md"
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 group-hover:scale-105 transition-transform">
-              <Coins className="w-4 h-4" />
-            </div>
-            <div className="text-left">
-              <div className="flex items-center gap-1.5">
-                <h4 className="text-xs font-bold text-white">Coin Reseller & Agent Portal</h4>
-                <span className="px-1.5 py-0.2 rounded-full text-[8px] font-black bg-amber-500 text-slate-950 uppercase">
-                  {currentUser.role === 'seller' || currentUser.role === 'agent' ? 'MERCHANT' : 'AGENCY'}
-                </span>
+      {/* Navigation Feature Hubs - Grid View */}
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+            <LayoutGrid className="w-3.5 h-3.5 text-violet-400" /> Services & Features
+          </span>
+        </div>
+
+        {/* 2-Column Grid View (Default) */}
+        {featureLayout === 'grid' && (
+          <div className="grid grid-cols-2 gap-2.5">
+            {/* VIP Privilege Center */}
+            <button
+              id="profile-vip-btn"
+              onClick={() => {
+                onOpenVIPCenter();
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="p-3.5 rounded-2xl border border-white/60 hover:border-teal-300 flex flex-col justify-between text-left transition-all duration-200 group active:scale-[0.98] shadow-md relative overflow-hidden min-h-[104px]"
+              style={{
+                background: 'radial-gradient(circle at 75% 70%, rgba(72, 206, 193, 0.6) 0%, rgba(255, 255, 255, 0.9) 60%, #ffffff 100%)'
+              }}
+            >
+              <div className="flex items-center justify-between w-full mb-2 relative z-10">
+                <div className="p-2 rounded-xl bg-teal-500/10 text-teal-600 border border-teal-500/20 group-hover:scale-105 transition-transform">
+                  <Crown className="w-4 h-4" />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {currentUser.vipTier !== 'vip_0' && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-teal-500/10 text-teal-700 border border-teal-500/20">
+                      {currentUser.vipTier.toUpperCase()}
+                    </span>
+                  )}
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-700 group-hover:translate-x-0.5 transition-all" />
+                </div>
               </div>
-              <p className="text-[10px] text-amber-300/80">
-                {currentUser.role === 'seller' || currentUser.role === 'agent'
-                  ? `Active Inventory: ${currentUser.coins.toLocaleString()} 🪙 • Wholesale Dispatches`
-                  : 'Wholesale coin minting, direct transfers & live orders'}
-              </p>
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-amber-400 group-hover:text-white transition-colors" />
-        </button>
+              <div className="relative z-10">
+                <h4 className="text-xs font-extrabold text-slate-800 group-hover:text-teal-900 transition-colors line-clamp-1">VIP Privilege Center</h4>
+                <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 group-hover:text-teal-700 transition-colors">Manage badge, frames & entry</p>
+              </div>
+            </button>
 
-        {/* VIP Center */}
-        <button
-          onClick={onOpenVIPCenter}
-          className="w-full p-3.5 rounded-2xl bg-[#121217] border border-[#232332] hover:border-violet-500/40 flex items-center justify-between transition-all group"
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-violet-500/20 text-violet-400 group-hover:scale-105 transition-transform">
-              <Crown className="w-4 h-4" />
-            </div>
-            <div className="text-left">
-              <h4 className="text-xs font-bold text-white">VIP Privilege Center</h4>
-              <p className="text-[10px] text-slate-400">Manage badge, frames & entry effects</p>
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
-        </button>
+            {/* Creator & Host Hub */}
+            <button
+              onClick={() => {
+                onOpenHostCenter();
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="p-3.5 rounded-2xl border border-white/60 hover:border-teal-300 flex flex-col justify-between text-left transition-all duration-200 group active:scale-[0.98] shadow-md relative overflow-hidden min-h-[104px]"
+              style={{
+                background: 'radial-gradient(circle at 75% 70%, rgba(72, 206, 193, 0.6) 0%, rgba(255, 255, 255, 0.9) 60%, #ffffff 100%)'
+              }}
+            >
+              <div className="flex items-center justify-between w-full mb-2 relative z-10">
+                <div className="p-2 rounded-xl bg-amber-500/15 text-amber-700 border border-amber-500/30 group-hover:scale-105 transition-transform">
+                  <Trophy className="w-4 h-4" />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {currentUser.isHost && (
+                    <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500/15 text-amber-800 border border-amber-500/30">
+                      HOST
+                    </span>
+                  )}
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-700 group-hover:translate-x-0.5 transition-all" />
+                </div>
+              </div>
+              <div className="relative z-10">
+                <h4 className="text-xs font-extrabold text-slate-800 group-hover:text-teal-900 transition-colors line-clamp-1">Creator & Host Hub</h4>
+                <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 group-hover:text-teal-700 transition-colors">Live metrics & commission</p>
+              </div>
+            </button>
 
-        {/* Creator & Host Hub */}
-        <button
-          onClick={onOpenHostCenter}
-          className="w-full p-3.5 rounded-2xl bg-[#121217] border border-[#232332] hover:border-amber-500/40 flex items-center justify-between transition-all group"
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 group-hover:scale-105 transition-transform">
-              <Trophy className="w-4 h-4" />
-            </div>
-            <div className="text-left">
-              <h4 className="text-xs font-bold text-white">Creator & Host Hub</h4>
-              <p className="text-[10px] text-slate-400">Live streaming metrics & commission share</p>
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
-        </button>
+            {/* Missions & Task Rewards */}
+            <button
+              onClick={() => {
+                onOpenMissions();
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="p-3.5 rounded-2xl border border-white/60 hover:border-teal-300 flex flex-col justify-between text-left transition-all duration-200 group active:scale-[0.98] shadow-md relative overflow-hidden min-h-[104px]"
+              style={{
+                background: 'radial-gradient(circle at 75% 70%, rgba(72, 206, 193, 0.6) 0%, rgba(255, 255, 255, 0.9) 60%, #ffffff 100%)'
+              }}
+            >
+              <div className="flex items-center justify-between w-full mb-2 relative z-10">
+                <div className="p-2 rounded-xl bg-emerald-500/15 text-emerald-700 border border-emerald-500/30 group-hover:scale-105 transition-transform">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-800 border border-emerald-500/30">
+                    DAILY
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-700 group-hover:translate-x-0.5 transition-all" />
+                </div>
+              </div>
+              <div className="relative z-10">
+                <h4 className="text-xs font-extrabold text-slate-800 group-hover:text-teal-900 transition-colors line-clamp-1">Missions & Tasks</h4>
+                <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 group-hover:text-teal-700 transition-colors">Earn free coins and XP</p>
+              </div>
+            </button>
 
-        {/* Missions & Task Rewards */}
-        <button
-          onClick={onOpenMissions}
-          className="w-full p-3.5 rounded-2xl bg-[#121217] border border-[#232332] hover:border-emerald-500/40 flex items-center justify-between transition-all group"
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 group-hover:scale-105 transition-transform">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <div className="text-left">
-              <h4 className="text-xs font-bold text-white">Missions & Task Rewards</h4>
-              <p className="text-[10px] text-slate-400">Earn free daily coins and leveling XP</p>
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
-        </button>
+            {/* Host Agency Center */}
+            <button
+              onClick={() => {
+                setIsAgencyCenterOpen(true);
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="p-3.5 rounded-2xl border border-white/60 hover:border-teal-300 flex flex-col justify-between text-left transition-all duration-200 group active:scale-[0.98] shadow-md relative overflow-hidden min-h-[104px]"
+              style={{
+                background: 'radial-gradient(circle at 75% 70%, rgba(72, 206, 193, 0.6) 0%, rgba(255, 255, 255, 0.9) 60%, #ffffff 100%)'
+              }}
+            >
+              <div className="flex items-center justify-between w-full mb-2 relative z-10">
+                <div className="p-2 rounded-xl bg-indigo-500/15 text-indigo-700 border border-indigo-500/30 group-hover:scale-105 transition-transform">
+                  <Building2 className="w-4 h-4" />
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-700 group-hover:translate-x-0.5 transition-all" />
+              </div>
+              <div className="relative z-10">
+                <h4 className="text-xs font-extrabold text-slate-800 group-hover:text-teal-900 transition-colors line-clamp-1">Agency Center</h4>
+                <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 group-hover:text-teal-700 transition-colors">Join or create Host Agency</p>
+              </div>
+            </button>
 
-        {/* My Backpack & Wardrobe */}
-        <button
-          onClick={() => setIsBackpackModalOpen(true)}
-          className="w-full p-3.5 rounded-2xl bg-[#121217] border border-[#232332] hover:border-fuchsia-500/40 flex items-center justify-between transition-all group"
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-fuchsia-500/20 text-fuchsia-400 group-hover:scale-105 transition-transform">
-              <Briefcase className="w-4 h-4" />
-            </div>
-            <div className="text-left">
-              <h4 className="text-xs font-bold text-white">My Backpack & Wardrobe</h4>
-              <p className="text-[10px] text-slate-400">Equip avatar frames, entry rides & bubbles</p>
-            </div>
-          </div>
-          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
-        </button>
+            {/* Item Mall & Store */}
+            <button
+              onClick={() => {
+                setIsStoreModalOpen(true);
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="p-3.5 rounded-2xl border border-white/60 hover:border-teal-300 flex flex-col justify-between text-left transition-all duration-200 group active:scale-[0.98] shadow-md relative overflow-hidden min-h-[104px]"
+              style={{
+                background: 'radial-gradient(circle at 75% 70%, rgba(72, 206, 193, 0.6) 0%, rgba(255, 255, 255, 0.9) 60%, #ffffff 100%)'
+              }}
+            >
+              <div className="flex items-center justify-between w-full mb-2 relative z-10">
+                <div className="p-2 rounded-xl bg-amber-500/15 text-amber-700 border border-amber-500/30 group-hover:scale-105 transition-transform">
+                  <ShoppingBag className="w-4 h-4" />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-800 text-[9px] font-black border border-amber-500/30">
+                    LUXURY
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-700 group-hover:translate-x-0.5 transition-all" />
+                </div>
+              </div>
+              <div className="relative z-10">
+                <h4 className="text-xs font-extrabold text-slate-800 group-hover:text-teal-900 transition-colors line-clamp-1">Luxury Store</h4>
+                <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 group-hover:text-teal-700 transition-colors">Frames, rides & thrones</p>
+              </div>
+            </button>
 
-        {/* Wallet Records & History */}
-        <button
-          onClick={() => setIsWalletRecordsOpen(true)}
-          className="w-full p-3.5 rounded-2xl bg-[#121217] border border-[#232332] hover:border-cyan-500/40 flex items-center justify-between transition-all group"
-        >
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400 group-hover:scale-105 transition-transform">
-              <History className="w-4 h-4" />
-            </div>
-            <div className="text-left">
-              <h4 className="text-xs font-bold text-white">Wallet Statement & Records</h4>
-              <p className="text-[10px] text-slate-400">Past coin purchases, gift receipts & cashouts</p>
-            </div>
+            {/* My Backpack & Wardrobe */}
+            <button
+              onClick={() => {
+                setIsBackpackModalOpen(true);
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="p-3.5 rounded-2xl border border-white/60 hover:border-teal-300 flex flex-col justify-between text-left transition-all duration-200 group active:scale-[0.98] shadow-md relative overflow-hidden min-h-[104px]"
+              style={{
+                background: 'radial-gradient(circle at 75% 70%, rgba(72, 206, 193, 0.6) 0%, rgba(255, 255, 255, 0.9) 60%, #ffffff 100%)'
+              }}
+            >
+              <div className="flex items-center justify-between w-full mb-2 relative z-10">
+                <div className="p-2 rounded-xl bg-fuchsia-500/15 text-fuchsia-700 border border-fuchsia-500/30 group-hover:scale-105 transition-transform">
+                  <Package className="w-4 h-4" />
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-700 group-hover:translate-x-0.5 transition-all" />
+              </div>
+              <div className="relative z-10">
+                <h4 className="text-xs font-extrabold text-slate-800 group-hover:text-teal-900 transition-colors line-clamp-1">Backpack & Wardrobe</h4>
+                <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 group-hover:text-teal-700 transition-colors">Equip avatar frames & rides</p>
+              </div>
+            </button>
+
+            {/* Wallet Statement & Records */}
+            <button
+              onClick={() => {
+                setIsWalletRecordsOpen(true);
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="p-3.5 rounded-2xl border border-white/60 hover:border-teal-300 flex flex-col justify-between text-left transition-all duration-200 group active:scale-[0.98] shadow-md relative overflow-hidden min-h-[104px]"
+              style={{
+                background: 'radial-gradient(circle at 75% 70%, rgba(72, 206, 193, 0.6) 0%, rgba(255, 255, 255, 0.9) 60%, #ffffff 100%)'
+              }}
+            >
+              <div className="flex items-center justify-between w-full mb-2 relative z-10">
+                <div className="p-2 rounded-xl bg-cyan-500/15 text-cyan-700 border border-cyan-500/30 group-hover:scale-105 transition-transform">
+                  <History className="w-4 h-4" />
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-700 group-hover:translate-x-0.5 transition-all" />
+              </div>
+              <div className="relative z-10">
+                <h4 className="text-xs font-extrabold text-slate-800 group-hover:text-teal-900 transition-colors line-clamp-1">Wallet Records</h4>
+                <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 group-hover:text-teal-700 transition-colors">Coin history, gifts & cashouts</p>
+              </div>
+            </button>
+
+            {/* Coin Reseller & Agent Hub */}
+            <button
+              onClick={() => {
+                onOpenSellerDashboard?.();
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="p-3.5 rounded-2xl border border-white/60 hover:border-teal-300 flex flex-col justify-between text-left transition-all duration-200 group active:scale-[0.98] shadow-md relative overflow-hidden min-h-[104px]"
+              style={{
+                background: 'radial-gradient(circle at 75% 70%, rgba(72, 206, 193, 0.6) 0%, rgba(255, 255, 255, 0.9) 60%, #ffffff 100%)'
+              }}
+            >
+              <div className="flex items-center justify-between w-full mb-2 relative z-10">
+                <div className="p-2 rounded-xl bg-amber-500/15 text-amber-700 border border-amber-500/30 group-hover:scale-105 transition-transform">
+                  <Coins className="w-4 h-4" />
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="px-1.5 py-0.5 rounded-full text-[8px] font-black bg-amber-500/20 text-amber-900 uppercase border border-amber-500/30">
+                    {currentUser.role === 'seller' || currentUser.role === 'agent' ? 'MERCHANT' : 'AGENCY'}
+                  </span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-teal-700 group-hover:translate-x-0.5 transition-all" />
+                </div>
+              </div>
+              <div className="relative z-10">
+                <h4 className="text-xs font-extrabold text-slate-800 group-hover:text-teal-900 transition-colors line-clamp-1">Reseller & Agent Portal</h4>
+                <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1 group-hover:text-teal-700 transition-colors">
+                  {currentUser.role === 'seller' || currentUser.role === 'agent'
+                    ? `Inventory: ${currentUser.coins.toLocaleString()} 🪙`
+                    : 'Wholesale coin minting & dispatches'}
+                </p>
+              </div>
+            </button>
           </div>
-          <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
-        </button>
+        )}
+
+        {/* Compact 4-Column Matrix View */}
+        {featureLayout === 'compact' && (
+          <div className="grid grid-cols-4 gap-2">
+            {/* VIP Center */}
+            <button
+              onClick={() => {
+                onOpenVIPCenter();
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="p-3 rounded-2xl bg-[#121217] border border-[#232332] hover:border-violet-500/40 flex flex-col items-center justify-center text-center transition-all group active:scale-95 relative"
+            >
+              <div className="p-2 rounded-xl bg-violet-500/20 text-violet-400 mb-1.5 group-hover:scale-110 transition-transform">
+                <Crown className="w-4 h-4" />
+              </div>
+              <span className="text-[11px] font-bold text-slate-200 line-clamp-1 w-full">VIP Center</span>
+            </button>
+
+            {/* Creator Hub */}
+            <button
+              onClick={() => {
+                onOpenHostCenter();
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="p-3 rounded-2xl bg-[#121217] border border-[#232332] hover:border-amber-500/40 flex flex-col items-center justify-center text-center transition-all group active:scale-95 relative"
+            >
+              <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 mb-1.5 group-hover:scale-110 transition-transform">
+                <Trophy className="w-4 h-4" />
+              </div>
+              <span className="text-[11px] font-bold text-slate-200 line-clamp-1 w-full">Host Hub</span>
+            </button>
+
+            {/* Missions */}
+            <button
+              onClick={() => {
+                onOpenMissions();
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="p-3 rounded-2xl bg-[#121217] border border-[#232332] hover:border-emerald-500/40 flex flex-col items-center justify-center text-center transition-all group active:scale-95 relative"
+            >
+              <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 mb-1.5 group-hover:scale-110 transition-transform">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <span className="text-[11px] font-bold text-slate-200 line-clamp-1 w-full">Missions</span>
+            </button>
+
+            {/* Agency */}
+            <button
+              onClick={() => {
+                setIsAgencyCenterOpen(true);
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="p-3 rounded-2xl bg-[#121217] border border-[#232332] hover:border-indigo-500/40 flex flex-col items-center justify-center text-center transition-all group active:scale-95 relative"
+            >
+              <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 mb-1.5 group-hover:scale-110 transition-transform">
+                <Building2 className="w-4 h-4" />
+              </div>
+              <span className="text-[11px] font-bold text-slate-200 line-clamp-1 w-full">Agency</span>
+            </button>
+
+            {/* Item Mall */}
+            <button
+              onClick={() => {
+                setIsStoreModalOpen(true);
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="p-3 rounded-2xl bg-violet-950/20 border border-violet-500/30 hover:border-fuchsia-500/50 flex flex-col items-center justify-center text-center transition-all group active:scale-95 relative"
+            >
+              <span className="absolute -top-1 -right-1 px-1 py-0.2 rounded-full text-[8px] font-black bg-amber-500 text-slate-950">
+                NEW
+              </span>
+              <div className="p-2 rounded-xl bg-gradient-to-tr from-violet-600 via-fuchsia-600 to-amber-500 text-white mb-1.5 group-hover:scale-110 transition-transform shadow-xs">
+                <ShoppingBag className="w-4 h-4" />
+              </div>
+              <span className="text-[11px] font-bold text-white line-clamp-1 w-full">Item Mall</span>
+            </button>
+
+            {/* Backpack */}
+            <button
+              onClick={() => {
+                setIsBackpackModalOpen(true);
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="p-3 rounded-2xl bg-[#121217] border border-[#232332] hover:border-fuchsia-500/40 flex flex-col items-center justify-center text-center transition-all group active:scale-95 relative"
+            >
+              <div className="p-2 rounded-xl bg-fuchsia-500/20 text-fuchsia-400 mb-1.5 group-hover:scale-110 transition-transform">
+                <Package className="w-4 h-4" />
+              </div>
+              <span className="text-[11px] font-bold text-slate-200 line-clamp-1 w-full">Backpack</span>
+            </button>
+
+            {/* Wallet Records */}
+            <button
+              onClick={() => {
+                setIsWalletRecordsOpen(true);
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="p-3 rounded-2xl bg-[#121217] border border-[#232332] hover:border-cyan-500/40 flex flex-col items-center justify-center text-center transition-all group active:scale-95 relative"
+            >
+              <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400 mb-1.5 group-hover:scale-110 transition-transform">
+                <History className="w-4 h-4" />
+              </div>
+              <span className="text-[11px] font-bold text-slate-200 line-clamp-1 w-full">Records</span>
+            </button>
+
+            {/* Reseller Hub */}
+            <button
+              onClick={() => {
+                onOpenSellerDashboard?.();
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="p-3 rounded-2xl bg-amber-950/20 border border-amber-500/30 hover:border-amber-400 flex flex-col items-center justify-center text-center transition-all group active:scale-95 relative"
+            >
+              <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 mb-1.5 group-hover:scale-110 transition-transform">
+                <Coins className="w-4 h-4" />
+              </div>
+              <span className="text-[11px] font-bold text-amber-300 line-clamp-1 w-full">Reseller</span>
+            </button>
+          </div>
+        )}
+
+        {/* List View (Classic Stacked) */}
+        {featureLayout === 'list' && (
+          <div className="space-y-2">
+            {/* VIP Center */}
+            <button
+              onClick={() => {
+                onOpenVIPCenter();
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="w-full p-3.5 rounded-2xl bg-[#121217] border border-[#232332] hover:border-violet-500/40 flex items-center justify-between transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-violet-500/20 text-violet-400 group-hover:scale-105 transition-transform">
+                  <Crown className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <h4 className="text-xs font-bold text-white">VIP Privilege Center</h4>
+                  <p className="text-[10px] text-slate-400">Manage badge, frames & entry effects</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+            </button>
+
+            {/* Creator & Host Hub */}
+            <button
+              onClick={() => {
+                onOpenHostCenter();
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="w-full p-3.5 rounded-2xl bg-[#121217] border border-[#232332] hover:border-amber-500/40 flex items-center justify-between transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 group-hover:scale-105 transition-transform">
+                  <Trophy className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <h4 className="text-xs font-bold text-white">Creator & Host Hub</h4>
+                  <p className="text-[10px] text-slate-400">Live streaming metrics & commission share</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+            </button>
+
+            {/* Missions & Task Rewards */}
+            <button
+              onClick={() => {
+                onOpenMissions();
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="w-full p-3.5 rounded-2xl bg-[#121217] border border-[#232332] hover:border-emerald-500/40 flex items-center justify-between transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 group-hover:scale-105 transition-transform">
+                  <Sparkles className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <h4 className="text-xs font-bold text-white">Missions & Task Rewards</h4>
+                  <p className="text-[10px] text-slate-400">Earn free daily coins and leveling XP</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+            </button>
+
+            {/* Host Agency Center */}
+            <button
+              onClick={() => {
+                setIsAgencyCenterOpen(true);
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="w-full p-3.5 rounded-2xl bg-[#121217] border border-[#232332] hover:border-indigo-500/40 flex items-center justify-between transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-indigo-500/20 text-indigo-400 group-hover:scale-105 transition-transform">
+                  <Building2 className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <h4 className="text-xs font-bold text-white">Agency Center</h4>
+                  <p className="text-[10px] text-slate-400">Join or create a Host Agency</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+            </button>
+
+            {/* Item Mall & Avatar Store */}
+            <button
+              onClick={() => {
+                setIsStoreModalOpen(true);
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-violet-950/40 via-[#151522] to-fuchsia-950/30 border border-violet-500/30 hover:border-violet-500/60 flex items-center justify-between transition-all group shadow-xs"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-gradient-to-tr from-violet-600 via-fuchsia-600 to-amber-500 text-white group-hover:scale-105 transition-transform shadow-md shadow-fuchsia-500/20">
+                  <ShoppingBag className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-xs font-bold text-white">Item Mall & Store</h4>
+                    <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-300 text-[9px] font-black border border-amber-500/30">
+                      NEW
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-400">Buy avatar frames, entrance rides, bubbles & badges</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-violet-400 group-hover:text-white transition-colors" />
+            </button>
+
+            {/* My Backpack & Wardrobe */}
+            <button
+              onClick={() => {
+                setIsBackpackModalOpen(true);
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="w-full p-3.5 rounded-2xl bg-[#121217] border border-[#232332] hover:border-fuchsia-500/40 flex items-center justify-between transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-fuchsia-500/20 text-fuchsia-400 group-hover:scale-105 transition-transform">
+                  <Package className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <h4 className="text-xs font-bold text-white">My Backpack & Wardrobe</h4>
+                  <p className="text-[10px] text-slate-400">Equip avatar frames, entry rides & bubbles</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+            </button>
+
+            {/* Wallet Records & History */}
+            <button
+              onClick={() => {
+                setIsWalletRecordsOpen(true);
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="w-full p-3.5 rounded-2xl bg-[#121217] border border-[#232332] hover:border-cyan-500/40 flex items-center justify-between transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400 group-hover:scale-105 transition-transform">
+                  <History className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <h4 className="text-xs font-bold text-white">Wallet Statement & Records</h4>
+                  <p className="text-[10px] text-slate-400">Past coin purchases, gift receipts & cashouts</p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-500 group-hover:text-white transition-colors" />
+            </button>
+
+            {/* Coin Reseller & Agent Hub */}
+            <button
+              onClick={() => {
+                onOpenSellerDashboard?.();
+                audioEngine.playSoundEffect('chime');
+              }}
+              className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-[#161622] to-[#121217] border border-amber-500/40 hover:border-amber-400 flex items-center justify-between transition-all group shadow-md"
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 group-hover:scale-105 transition-transform">
+                  <Coins className="w-4 h-4" />
+                </div>
+                <div className="text-left">
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-xs font-bold text-white">Coin Reseller & Agent Portal</h4>
+                    <span className="px-1.5 py-0.2 rounded-full text-[8px] font-black bg-amber-500 text-slate-950 uppercase">
+                      {currentUser.role === 'seller' || currentUser.role === 'agent' ? 'MERCHANT' : 'AGENCY'}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-amber-300/80">
+                    {currentUser.role === 'seller' || currentUser.role === 'agent'
+                      ? `Active Inventory: ${currentUser.coins.toLocaleString()} 🪙 • Wholesale Dispatches`
+                      : 'Wholesale coin minting, direct transfers & live orders'}
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-amber-400 group-hover:text-white transition-colors" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Switch Demo Persona */}
@@ -570,6 +1013,26 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               <span>{currentUser.country || 'United States'}</span>
             </span>
           </div>
+
+          {/* Replay Splash Screen */}
+          <button
+            onClick={() => {
+              window.dispatchEvent(new CustomEvent('auravoice_trigger_splash'));
+              audioEngine.playSoundEffect('chime');
+            }}
+            className="w-full flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-cyan-950/40 to-[#1A1A24] hover:bg-cyan-950/60 border border-cyan-500/30 transition-all text-left group"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 group-hover:scale-105 transition-transform">
+                <Sparkles className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-white group-hover:text-cyan-200">Replay Splash Screen</span>
+                <p className="text-[10px] text-slate-400">View entry screen with Skip</p>
+              </div>
+            </div>
+            <ChevronRight className="w-3.5 h-3.5 text-cyan-400/60 group-hover:text-cyan-300 group-hover:translate-x-0.5 transition-all" />
+          </button>
         </div>
 
         {/* Account Actions: Reset Password & Switch Account */}
@@ -789,6 +1252,23 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           setIsBackpackModalOpen(false);
           onOpenVIPCenter();
         }}
+        onOpenStore={() => {
+          setIsBackpackModalOpen(false);
+          setIsStoreModalOpen(true);
+        }}
+      />
+
+      <StoreModal
+        isOpen={isStoreModalOpen}
+        onClose={() => setIsStoreModalOpen(false)}
+        onOpenCoinStore={() => {
+          setIsStoreModalOpen(false);
+          onOpenCoinStore();
+        }}
+        onOpenBackpack={() => {
+          setIsStoreModalOpen(false);
+          setIsBackpackModalOpen(true);
+        }}
       />
 
       <WalletRecordsModal
@@ -799,6 +1279,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       <AppSettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
+      />
+
+      <AgencyCenterModal
+        isOpen={isAgencyCenterOpen}
+        onClose={() => setIsAgencyCenterOpen(false)}
       />
     </div>
   );

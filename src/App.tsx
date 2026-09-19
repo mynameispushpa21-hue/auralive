@@ -84,6 +84,18 @@ const AppContent: React.FC = () => {
             <LayoutDashboard className="w-3.5 h-3.5" />
             <span>Web Admin Panel</span>
           </button>
+
+          <button
+            onClick={() => {
+              setActivePlatformView('mobile');
+              window.dispatchEvent(new CustomEvent('auravoice_trigger_splash'));
+            }}
+            className="px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 text-cyan-300 hover:text-cyan-200 hover:bg-cyan-950/40 border border-cyan-500/30 ml-1"
+            title="Preview Splash Screen with Skip option"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden lg:inline">Splash Screen</span>
+          </button>
         </div>
 
         {/* Right Persona Quick-Switcher, Balances & Auth Controls */}

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import {
+  Menu,
+  X,
   LayoutDashboard,
   Users,
   Mic,
@@ -14,16 +16,22 @@ import {
   Database,
   Code,
   Building2,
+  CreditCard,
+  Gamepad2,
+  ShoppingBag,
 } from 'lucide-react';
 import { AdminDashboard } from './AdminDashboard';
 import { AdminUsersTable } from './AdminUsersTable';
 import { AdminHostsTable } from './AdminHostsTable';
 import { AdminGiftsWrapper } from './AdminGiftsWrapper';
+import { AdminStoreItemsTable } from './AdminStoreItemsTable';
+import { AdminGamesTable } from './AdminGamesTable';
 import { AdminSellersTable } from './AdminSellersTable';
 import { AdminHostAgenciesTable } from './AdminHostAgenciesTable';
 import { AdminWithdrawalsTable } from './AdminWithdrawalsTable';
 import { AdminModerationTable } from './AdminModerationTable';
 import { AdminSystemConfig } from './AdminSystemConfig';
+import { AdminPaymentGateways } from './AdminPaymentGateways';
 import { useAppState } from '../../services/stateStore';
 
 export type AdminTab =
@@ -31,8 +39,11 @@ export type AdminTab =
   | 'users'
   | 'hosts'
   | 'gifts'
+  | 'store'
+  | 'games'
   | 'sellers'
   | 'host_agencies'
+  | 'gateways'
   | 'withdrawals'
   | 'moderation'
   | 'config'
@@ -43,11 +54,13 @@ interface AdminContainerProps {
 }
 
 export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile }) => {
-  const { withdrawals, hostApplications } = useAppState();
+  const { withdrawals, hostApplications, agencyApplications } = useAppState();
   const [currentTab, setCurrentTab] = useState<AdminTab>('dashboard');
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const pendingWithdrawalsCount = withdrawals.filter((w) => w.status === 'PENDING').length;
   const pendingHostsCount = hostApplications.filter((a) => a.status === 'PENDING').length;
+  const pendingAgenciesCount = (agencyApplications || []).filter((a) => a.status === 'PENDING').length;
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard & Telemetry', icon: <LayoutDashboard className="w-4 h-4" /> },
@@ -59,8 +72,16 @@ export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile
       badge: pendingHostsCount > 0 ? pendingHostsCount : undefined,
     },
     { id: 'gifts', label: 'Virtual Gifts Catalog', icon: <Gift className="w-4 h-4" /> },
+    { id: 'store', label: 'Store Assets (Frames, Rides, Sounds)', icon: <ShoppingBag className="w-4 h-4" /> },
+    { id: 'games', label: 'Mini-Games & Arcade', icon: <Gamepad2 className="w-4 h-4" /> },
     { id: 'sellers', label: 'Coin Resellers', icon: <Coins className="w-4 h-4" /> },
-    { id: 'host_agencies', label: 'Host Agencies', icon: <Building2 className="w-4 h-4" /> },
+    {
+      id: 'host_agencies',
+      label: 'Host Agencies',
+      icon: <Building2 className="w-4 h-4" />,
+      badge: pendingAgenciesCount > 0 ? pendingAgenciesCount : undefined,
+    },
+    { id: 'gateways', label: 'Payment Gateways', icon: <CreditCard className="w-4 h-4" /> },
     {
       id: 'withdrawals',
       label: 'Cash Payout Ledger',
@@ -74,11 +95,37 @@ export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile
 
   return (
     <div id="admin-portal-wrapper" className="w-full bg-[#0B0B0F] text-slate-100 flex flex-col md:flex-row font-sans md:h-screen md:overflow-hidden">
-      {/* SIDEBAR NAVIGATION */}
-      <aside className="w-full md:w-64 bg-[#121217] border-b md:border-r border-[#232332] flex flex-col shrink-0">
-        <div className="p-4 space-y-4 md:space-y-6 flex flex-col h-full">
+      {/* MOBILE HEADER (Visible only on mobile) */}
+      <div className="md:hidden flex items-center justify-between p-4 bg-[#121217] border-b border-[#232332] shrink-0 z-20 relative">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-violet-600 via-fuchsia-600 to-amber-500 flex items-center justify-center text-white font-black text-sm shadow-md">
+            A
+          </div>
+          <div>
+            <h1 className="text-sm font-extrabold text-white font-display">AuraVoice Admin</h1>
+            <span className="text-[9px] font-bold text-violet-400 uppercase tracking-wider">Web Operations Console</span>
+          </div>
+        </div>
+        <button onClick={() => setIsDrawerOpen(true)} className="p-2 text-slate-300 hover:text-white transition-colors">
+          <Menu className="w-6 h-6" />
+        </button>
+      </div>
+
+      {/* MOBILE DRAWER BACKDROP */}
+      {isDrawerOpen && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-40 md:hidden backdrop-blur-sm" 
+          onClick={() => setIsDrawerOpen(false)} 
+        />
+      )}
+
+      {/* SIDEBAR NAVIGATION (Desktop persistent, Mobile Drawer) */}
+      <aside 
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#121217] border-r border-[#232332] flex flex-col shrink-0 transition-transform duration-300 ease-in-out md:static md:translate-x-0 ${isDrawerOpen ? 'translate-x-0' : '-translate-x-full'}`}
+      >
+        <div className="p-4 space-y-6 flex flex-col h-full">
           {/* Brand Header */}
-          <div className="flex items-center justify-between pb-0 md:pb-4 md:border-b border-[#232332]">
+          <div className="flex items-center justify-between pb-4 border-b border-[#232332]">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-violet-600 via-fuchsia-600 to-amber-500 flex items-center justify-center text-white font-black text-sm shadow-md">
                 A
@@ -88,18 +135,28 @@ export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile
                 <span className="text-[9px] font-bold text-violet-400 uppercase tracking-wider">Web Operations Console</span>
               </div>
             </div>
+            {/* Mobile close button */}
+            <button 
+              className="md:hidden p-1.5 rounded-full bg-[#1A1A24] text-slate-400 hover:text-white hover:bg-[#232332] transition-colors" 
+              onClick={() => setIsDrawerOpen(false)}
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Navigation Links */}
-          <nav className="flex md:flex-col gap-2 overflow-x-auto no-scrollbar pb-2 md:pb-0">
+          <nav className="flex flex-col gap-2 overflow-y-auto no-scrollbar flex-1 pb-4">
             {navItems.map((item) => {
               const isActive = currentTab === item.id;
 
               return (
                 <button
                   key={item.id}
-                  onClick={() => setCurrentTab(item.id as AdminTab)}
-                  className={`shrink-0 md:w-full px-3 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between transition-all ${
+                  onClick={() => {
+                    setCurrentTab(item.id as AdminTab);
+                    setIsDrawerOpen(false); // Close drawer on mobile after selection
+                  }}
+                  className={`w-full px-3 py-2.5 rounded-xl text-xs font-semibold flex items-center justify-between transition-all ${
                     isActive
                       ? 'bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20 text-violet-300 border border-violet-500/40 font-bold shadow-xs'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-[#1A1A24]'
@@ -121,7 +178,7 @@ export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile
           </nav>
           
           {/* Bottom Switcher to Mobile App */}
-          <div className="hidden md:block pt-4 border-t border-[#232332] space-y-2 mt-auto">
+          <div className="pt-4 border-t border-[#232332] space-y-2 mt-auto">
             <button
               onClick={onSwitchToMobile}
               className="w-full py-2.5 rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-amber-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:brightness-110 active:scale-98 transition-all"
@@ -134,25 +191,17 @@ export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile
         </div>
       </aside>
 
-      {/* MOBILE SWITCHER - only shown on mobile below header */}
-      <div className="md:hidden p-3 border-b border-[#232332] bg-[#121217]">
-        <button
-          onClick={onSwitchToMobile}
-          className="w-full py-2 rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-amber-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md"
-        >
-          <Radio className="w-4 h-4" />
-          <span>Launch Live Mobile Client</span>
-        </button>
-      </div>
-
       {/* MAIN ADMIN CONTENT VIEWPORT */}
       <main className="flex-1 p-4 md:p-8 overflow-y-auto">
         {currentTab === 'dashboard' && <AdminDashboard onNavigateTab={(tab) => setCurrentTab(tab as AdminTab)} />}
         {currentTab === 'users' && <AdminUsersTable />}
         {currentTab === 'hosts' && <AdminHostsTable />}
         {currentTab === 'gifts' && <AdminGiftsWrapper />}
+        {currentTab === 'store' && <AdminStoreItemsTable />}
+        {currentTab === 'games' && <AdminGamesTable />}
         {currentTab === 'sellers' && <AdminSellersTable />}
         {currentTab === 'host_agencies' && <AdminHostAgenciesTable />}
+        {currentTab === 'gateways' && <AdminPaymentGateways />}
         {currentTab === 'withdrawals' && <AdminWithdrawalsTable />}
         {currentTab === 'moderation' && <AdminModerationTable />}
         {currentTab === 'config' && <AdminSystemConfig />}

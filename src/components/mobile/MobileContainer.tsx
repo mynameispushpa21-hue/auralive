@@ -20,6 +20,7 @@ import {
 import { useAppState } from '../../services/stateStore';
 import { HomeScreen } from './HomeScreen';
 import { DiscoverScreen } from './DiscoverScreen';
+import { GamesScreen } from './GamesScreen';
 import { WalletScreen } from './WalletScreen';
 import { MessagesScreen } from './MessagesScreen';
 import { ProfileScreen } from './ProfileScreen';
@@ -41,11 +42,13 @@ import { AuthModal } from '../auth/AuthModal';
 import { CoinSellerDashboard } from '../reseller/CoinSellerDashboard';
 import { BuyCoinsFromSellerModal } from '../reseller/BuyCoinsFromSellerModal';
 import { TransferCoinsModal } from '../reseller/TransferCoinsModal';
+import { SplashScreen } from './SplashScreen';
 import { UserProfile } from '../../types';
 
 export type MobileTab =
   | 'home'
   | 'discover'
+  | 'games'
   | 'messages'
   | 'profile'
   | 'wallet'
@@ -87,8 +90,15 @@ export const MobileContainer: React.FC = () => {
   const [isWithdrawalOpen, setIsWithdrawalOpen] = useState(false);
   const [isBuyCoinsFromSellerOpen, setIsBuyCoinsFromSellerOpen] = useState(false);
   const [isSellerTransferModalOpen, setIsSellerTransferModalOpen] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
   const [giftTargetUser, setGiftTargetUser] = useState<UserProfile | null>(null);
   const [currentTime, setCurrentTime] = useState('9:41');
+
+  useEffect(() => {
+    const handleTriggerSplash = () => setShowSplash(true);
+    window.addEventListener('auravoice_trigger_splash', handleTriggerSplash);
+    return () => window.removeEventListener('auravoice_trigger_splash', handleTriggerSplash);
+  }, []);
 
   useEffect(() => {
     const updateClock = () => {
@@ -116,7 +126,7 @@ export const MobileContainer: React.FC = () => {
   return (
     <div
       id="android-device-wrapper"
-      className="relative w-full max-w-[430px] h-[880px] max-h-[95vh] bg-[#0B0B0F] rounded-[44px] shadow-[0_25px_70px_rgba(0,0,0,0.9)] border-8 border-[#1A1A26] overflow-hidden flex flex-col font-sans select-none"
+      className="relative w-full max-w-[430px] h-[880px] max-h-[95vh] app-screens-bg rounded-[44px] shadow-[0_25px_70px_rgba(0,0,0,0.9)] border-8 border-[#1A1A26] overflow-hidden flex flex-col font-sans select-none"
     >
       {/* Full-Screen Gift Animation Overlay (Broadcast across UI) */}
       <GiftAnimationOverlay
@@ -124,26 +134,46 @@ export const MobileContainer: React.FC = () => {
         onDismiss={clearGiftAnimation}
       />
 
+      {/* 5-SECOND SPLASH SCREEN WITH SKIP OPTION ON RIGHT */}
+      <AnimatePresence>
+        {showSplash && (
+          <SplashScreen
+            duration={5}
+            onFinish={() => setShowSplash(false)}
+          />
+        )}
+      </AnimatePresence>
+
       {/* TOP STATUS BAR (Time, Notch, 5G, Battery) */}
-      <div className="relative z-30 px-6 pt-3 pb-1 flex items-center justify-between text-xs text-slate-300 font-semibold bg-[#0B0B0F]/90 backdrop-blur-md">
+      <div
+        className={`relative z-30 px-6 pt-3 pb-1 flex items-center justify-between text-xs font-semibold ${
+          !isAuthenticated
+            ? 'text-[#231A4C] bg-[#FAF8FD] border-b border-[#EBE8F8]'
+            : 'text-white bg-black/40 backdrop-blur-md border-b border-white/10'
+        }`}
+      >
         <span>{currentTime}</span>
 
         {/* Dynamic Island / Speaker Pill */}
-        <div className="w-24 h-4 bg-black rounded-full flex items-center justify-center gap-1.5 px-2 border border-white/5">
+        <div
+          className={`w-24 h-4 rounded-full flex items-center justify-center gap-1.5 px-2 shadow-inner ${
+            !isAuthenticated ? 'bg-slate-900 border border-slate-700/50' : 'bg-black/80 border border-white/10'
+          }`}
+        >
           <div className="w-2 h-2 rounded-full bg-slate-800" />
           <div className="w-1.5 h-1.5 rounded-full bg-slate-900" />
         </div>
 
         <div className="flex items-center gap-1.5">
-          <Wifi className="w-3.5 h-3.5 text-slate-400" />
-          <span className="text-[10px] font-bold text-violet-400">5G</span>
-          <Battery className="w-4 h-4 text-emerald-400" />
+          <Wifi className={`w-3.5 h-3.5 ${!isAuthenticated ? 'text-[#3B3463]' : 'text-white/80'}`} />
+          <span className={`text-[10px] font-bold ${!isAuthenticated ? 'text-[#5B5CEB]' : 'text-cyan-300'}`}>5G</span>
+          <Battery className={`w-4 h-4 ${!isAuthenticated ? 'text-[#231A4C]' : 'text-emerald-400'}`} />
         </div>
       </div>
 
       {/* TOP APP HEADER (Logo, Coin Pill, Notifications) */}
       {isAuthenticated && (!activeRoom || isRoomMinimized) && (
-        <div className="relative z-20 px-4 py-2.5 bg-[#121217]/95 border-b border-[#232332] flex items-center justify-between">
+        <div className="relative z-20 px-4 py-2.5 bg-black/45 backdrop-blur-xl border-b border-white/10 flex items-center justify-between shadow-xs">
           <div
             onClick={() => setActiveTab('home')}
             className="flex items-center gap-2 cursor-pointer group"
@@ -152,17 +182,26 @@ export const MobileContainer: React.FC = () => {
               A
             </div>
             <div>
-              <span className="text-sm font-extrabold text-white font-display tracking-tight group-hover:text-violet-400 transition-colors">
-                AuraVoice
+              <span className="text-sm font-extrabold text-white font-display tracking-tight group-hover:text-cyan-300 transition-colors drop-shadow-xs">
+                Aura
               </span>
-              <span className="text-[9px] font-bold text-violet-400 ml-1 px-1.5 py-0.5 rounded-sm bg-violet-500/10 border border-violet-500/20">LIVE</span>
+              <span className="text-[9px] font-bold text-rose-400 ml-1 px-1.5 py-0.5 rounded-sm bg-rose-500/20 border border-rose-500/30">LIVE</span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Replay Splash Button */}
+            <button
+              onClick={() => setShowSplash(true)}
+              className="p-1.5 rounded-full text-slate-300 hover:text-cyan-300 hover:bg-white/10 transition-colors"
+              title="Preview Splash Screen"
+            >
+              <Sparkles className="w-4 h-4 text-cyan-400" />
+            </button>
+
             <button
               onClick={() => setIsCoinStoreOpen(true)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#1A1A24] hover:bg-[#232332] border border-amber-500/30 text-amber-300 text-xs font-bold transition-all shadow-xs"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/50 hover:bg-black/70 border border-amber-400/40 text-amber-300 text-xs font-bold transition-all shadow-xs backdrop-blur-sm"
             >
               <span>🪙</span>
               <span>{currentUser.coins.toLocaleString()}</span>
@@ -174,7 +213,7 @@ export const MobileContainer: React.FC = () => {
             {/* Notifications Bell */}
             <button
               onClick={() => setActiveTab('notifications')}
-              className="relative p-2 rounded-full text-slate-300 hover:text-white hover:bg-[#1A1A24] transition-colors"
+              className="relative p-2 rounded-full text-slate-200 hover:text-white hover:bg-white/10 transition-colors"
             >
               <Bell className="w-4 h-4" />
               {unreadNotifCount > 0 && (
@@ -186,7 +225,7 @@ export const MobileContainer: React.FC = () => {
       )}
 
       {/* MAIN CONTENT ROUTER AREA */}
-      <div className="relative flex-1 overflow-y-auto no-scrollbar bg-[#0B0B0F]">
+      <div className="relative flex-1 overflow-y-auto no-scrollbar bg-transparent">
         {!isAuthenticated ? (
           /* Enforced Login & Sign Up view on App Open when not authenticated */
           <AuthScreen />
@@ -196,6 +235,7 @@ export const MobileContainer: React.FC = () => {
             onOpenGiftModal={handleOpenGiftModal}
             onOpenCoinStore={() => setIsCoinStoreOpen(true)}
             onOpenBuyCoinsFromSeller={() => setIsBuyCoinsFromSellerOpen(true)}
+            isGiftModalOpen={isGiftModalOpen}
           />
         ) : (
           /* Normal Tab Screen Navigation */
@@ -208,6 +248,13 @@ export const MobileContainer: React.FC = () => {
                 onOpenVIPCenter={() => setActiveTab('vip')}
                 onOpenEvents={() => setActiveTab('events')}
                 onOpenRankings={() => setActiveTab('rankings')}
+                onOpenGames={() => setActiveTab('games')}
+              />
+            )}
+            {activeTab === 'games' && (
+              <GamesScreen
+                onOpenCoinStore={() => setIsCoinStoreOpen(true)}
+                onOpenVIP={() => setActiveTab('vip')}
               />
             )}
             {activeTab === 'discover' && (
@@ -307,7 +354,7 @@ export const MobileContainer: React.FC = () => {
             <div className="flex items-center gap-1.5">
               {currentUserSeat && (
                 <button
-                  onClick={toggleMuteSeat}
+                  onClick={() => toggleMuteSeat()}
                   className={`p-1.5 rounded-full ${
                     currentUserSeat.isMuted ? 'bg-rose-600 text-white' : 'bg-emerald-500 text-slate-950'
                   }`}
@@ -337,57 +384,143 @@ export const MobileContainer: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* BOTTOM NAVIGATION BAR (Flutter standard 5-tab) */}
+      {/* BOTTOM NAVIGATION BAR - Capsule Floating Dock matching Screenshot */}
       {(!activeRoom || isRoomMinimized) && (
-        <div className="relative z-20 px-4 py-2 bg-[#121217]/95 border-t border-[#232332] backdrop-blur-lg flex items-center justify-between text-slate-400">
-          <button
-            onClick={() => setActiveTab('home')}
-            className={`flex flex-col items-center gap-1 transition-colors ${
-              activeTab === 'home' ? 'text-violet-400 font-bold' : 'hover:text-slate-200'
-            }`}
-          >
-            <Home className="w-5 h-5" />
-            <span className="text-[10px]">Party</span>
-          </button>
+        <div className="relative z-20 px-3 pb-3 pt-1">
+          <div className="relative px-3 py-1.5 rounded-[28px] bg-gradient-to-b from-[#0e1628] to-[#090e1c] border border-[#1e293b]/90 backdrop-blur-2xl shadow-[0_12px_36px_rgba(0,0,0,0.85)] flex items-center justify-between">
+            {/* 1. HOME TAB */}
+            <button
+              onClick={() => setActiveTab('home')}
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 relative py-1 transition-all group cursor-pointer"
+            >
+              <Home
+                className={`w-[22px] h-[22px] transition-colors stroke-[2.2] ${
+                  activeTab === 'home' ? 'text-[#00e5ff] drop-shadow-[0_0_6px_rgba(0,229,255,0.6)]' : 'text-slate-400 group-hover:text-slate-200'
+                }`}
+              />
+              <span
+                className={`text-[11px] font-medium tracking-tight transition-colors ${
+                  activeTab === 'home' ? 'text-[#00e5ff] font-semibold' : 'text-slate-400 group-hover:text-slate-200'
+                }`}
+              >
+                Home
+              </span>
+              {/* Active Cyan Dot Indicator */}
+              <div className="h-1.5 flex items-center justify-center">
+                {activeTab === 'home' ? (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00e5ff] shadow-[0_0_8px_#00e5ff] animate-pulse" />
+                ) : (
+                  <span className="w-1.5 h-1.5 opacity-0" />
+                )}
+              </div>
+            </button>
 
-          <button
-            onClick={() => setActiveTab('discover')}
-            className={`flex flex-col items-center gap-1 transition-colors ${
-              activeTab === 'discover' ? 'text-violet-400 font-bold' : 'hover:text-slate-200'
-            }`}
-          >
-            <Compass className="w-5 h-5" />
-            <span className="text-[10px]">Explore</span>
-          </button>
+            {/* 2. DISCOVER TAB */}
+            <button
+              onClick={() => setActiveTab('discover')}
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 relative py-1 transition-all group cursor-pointer"
+            >
+              <Compass
+                className={`w-[22px] h-[22px] transition-colors stroke-[2] ${
+                  activeTab === 'discover' ? 'text-[#00e5ff] drop-shadow-[0_0_6px_rgba(0,229,255,0.6)]' : 'text-slate-400 group-hover:text-slate-200'
+                }`}
+              />
+              <span
+                className={`text-[11px] font-medium tracking-tight transition-colors ${
+                  activeTab === 'discover' ? 'text-[#00e5ff] font-semibold' : 'text-slate-400 group-hover:text-slate-200'
+                }`}
+              >
+                Discover
+              </span>
+              <div className="h-1.5 flex items-center justify-center">
+                {activeTab === 'discover' ? (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00e5ff] shadow-[0_0_8px_#00e5ff] animate-pulse" />
+                ) : (
+                  <span className="w-1.5 h-1.5 opacity-0" />
+                )}
+              </div>
+            </button>
 
-          {/* Center Glow Go-Live Button */}
-          <button
-            onClick={() => setIsCreateRoomOpen(true)}
-            className="-mt-5 p-3 rounded-full bg-gradient-to-tr from-violet-600 via-fuchsia-600 to-amber-500 text-white shadow-lg shadow-violet-500/30 active:scale-95 transition-transform ring-4 ring-[#0B0B0F]"
-            title="Create Room"
-          >
-            <Radio className="w-5 h-5" />
-          </button>
+            {/* 3. CENTER FLOATING ACTION '+' BUTTON */}
+            <div className="flex-1 flex flex-col items-center justify-center relative -mt-6">
+              {/* Radial Cyan Glow Aura behind button */}
+              <div className="absolute inset-0 -m-1 rounded-full bg-[#00e5ff]/25 blur-lg pointer-events-none" />
 
-          <button
-            onClick={() => setActiveTab('messages')}
-            className={`flex flex-col items-center gap-1 transition-colors ${
-              activeTab === 'messages' ? 'text-violet-400 font-bold' : 'hover:text-slate-200'
-            }`}
-          >
-            <MessageSquare className="w-5 h-5" />
-            <span className="text-[10px]">Chat</span>
-          </button>
+              <button
+                onClick={() => setIsCreateRoomOpen(true)}
+                className="relative w-[52px] h-[52px] rounded-full p-[2px] bg-gradient-to-tr from-[#00e5ff] via-[#38bdf8] to-[#c084fc] shadow-[0_0_20px_rgba(0,229,255,0.4)] active:scale-90 transition-transform cursor-pointer"
+                title="Create Room"
+              >
+                <div className="w-full h-full rounded-full bg-[#080d1a] flex items-center justify-center border border-cyan-400/20">
+                  <Plus className="w-6 h-6 text-[#00e5ff] stroke-[2.8]" />
+                </div>
+              </button>
+            </div>
 
-          <button
-            onClick={() => setActiveTab('profile')}
-            className={`flex flex-col items-center gap-1 transition-colors ${
-              activeTab === 'profile' ? 'text-violet-400 font-bold' : 'hover:text-slate-200'
-            }`}
-          >
-            <User className="w-5 h-5" />
-            <span className="text-[10px]">Me</span>
-          </button>
+            {/* 4. MESSAGES TAB */}
+            <button
+              onClick={() => setActiveTab('messages')}
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 relative py-1 transition-all group cursor-pointer"
+            >
+              <div className="relative">
+                <MessageSquare
+                  className={`w-[22px] h-[22px] transition-colors stroke-[2] ${
+                    activeTab === 'messages' ? 'text-[#00e5ff] drop-shadow-[0_0_6px_rgba(0,229,255,0.6)]' : 'text-slate-400 group-hover:text-slate-200'
+                  }`}
+                />
+                {/* Red Circular Notification Badge with '2' */}
+                <span className="absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] px-1 rounded-full bg-[#ff2d55] text-white text-[9px] font-bold flex items-center justify-center shadow-[0_0_8px_rgba(255,45,85,0.85)] border border-white/20 leading-none">
+                  {unreadNotifCount > 0 ? unreadNotifCount : 2}
+                </span>
+              </div>
+              <span
+                className={`text-[11px] font-medium tracking-tight transition-colors ${
+                  activeTab === 'messages' ? 'text-[#00e5ff] font-semibold' : 'text-slate-400 group-hover:text-slate-200'
+                }`}
+              >
+                Messages
+              </span>
+              <div className="h-1.5 flex items-center justify-center">
+                {activeTab === 'messages' ? (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00e5ff] shadow-[0_0_8px_#00e5ff] animate-pulse" />
+                ) : (
+                  <span className="w-1.5 h-1.5 opacity-0" />
+                )}
+              </div>
+            </button>
+
+            {/* 5. PROFILE TAB */}
+            <button
+              onClick={() => setActiveTab('profile')}
+              className="flex-1 flex flex-col items-center justify-center gap-0.5 relative py-1 transition-all group cursor-pointer"
+            >
+              <div className="relative">
+                <img
+                  src={currentUser.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+                  alt={currentUser.displayName}
+                  className={`w-[22px] h-[22px] rounded-full object-cover transition-all ring-1.5 ${
+                    activeTab === 'profile'
+                      ? 'ring-[#00e5ff] shadow-[0_0_8px_rgba(0,229,255,0.6)]'
+                      : 'ring-slate-500/70 group-hover:ring-slate-300'
+                  }`}
+                />
+              </div>
+              <span
+                className={`text-[11px] font-medium tracking-tight transition-colors ${
+                  activeTab === 'profile' ? 'text-[#00e5ff] font-semibold' : 'text-slate-400 group-hover:text-slate-200'
+                }`}
+              >
+                Profile
+              </span>
+              <div className="h-1.5 flex items-center justify-center">
+                {activeTab === 'profile' ? (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00e5ff] shadow-[0_0_8px_#00e5ff] animate-pulse" />
+                ) : (
+                  <span className="w-1.5 h-1.5 opacity-0" />
+                )}
+              </div>
+            </button>
+          </div>
         </div>
       )}
 

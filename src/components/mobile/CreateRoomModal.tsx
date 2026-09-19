@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, Radio, Video, Lock, Sparkles, X, LayoutGrid } from 'lucide-react';
+import { Mic, Radio, Video, Lock, Sparkles, X, LayoutGrid, Gem } from 'lucide-react';
 import { useAppState } from '../../services/stateStore';
 import { VoiceRoom } from '../../types';
+import { ROOM_THEMES } from '../../data/roomThemesData';
 
 interface CreateRoomModalProps {
   isOpen: boolean;
@@ -10,26 +11,19 @@ interface CreateRoomModalProps {
 }
 
 export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClose }) => {
-  const { createRoom, currentUser } = useAppState();
+  const { createRoom, currentUser, isRoomThemeUnlocked } = useAppState();
   const [title, setTitle] = useState(`${currentUser.displayName}'s Lounge 🎙️`);
   const [category, setCategory] = useState<VoiceRoom['category']>('Music');
-  const [seatCount, setSeatCount] = useState<number>(8);
+  const [seatCount, setSeatCount] = useState<number>(50);
   const [isPrivate, setIsPrivate] = useState<boolean>(false);
   const [password, setPassword] = useState('');
   const [isVideoEnabled, setIsVideoEnabled] = useState<boolean>(false);
   const [announcement, setAnnouncement] = useState('Welcome! Hop on mic and let us vibe 🎵');
-  const [backgroundTheme, setBackgroundTheme] = useState('from-purple-950 via-slate-900 to-indigo-950');
+  const [backgroundTheme, setBackgroundTheme] = useState(ROOM_THEMES[0].gradientClass);
 
   if (!isOpen) return null;
 
   const categories: VoiceRoom['category'][] = ['Music', 'Chat', 'Gaming', 'Karaoke', 'Chill', 'Dating', 'Talent', 'Language'];
-
-  const themes = [
-    { label: 'Royal Violet', value: 'from-purple-950 via-slate-900 to-indigo-950', preview: 'bg-gradient-to-r from-purple-900 to-indigo-900' },
-    { label: 'Sunset Amber', value: 'from-amber-950 via-slate-900 to-rose-950', preview: 'bg-gradient-to-r from-amber-900 to-rose-900' },
-    { label: 'Cyber Ocean', value: 'from-cyan-950 via-slate-900 to-blue-950', preview: 'bg-gradient-to-r from-cyan-900 to-blue-900' },
-    { label: 'Midnight Neon', value: 'from-emerald-950 via-slate-900 to-teal-950', preview: 'bg-gradient-to-r from-emerald-900 to-teal-900' },
-  ];
 
   const handleCreate = () => {
     if (!title.trim()) return;
@@ -134,23 +128,45 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ isOpen, onClos
 
             {/* Theme Gradient */}
             <div>
-              <label className="text-xs font-bold text-slate-300 block mb-1.5">Stage Theme</label>
-              <div className="grid grid-cols-2 gap-2">
-                {themes.map((t) => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => setBackgroundTheme(t.value)}
-                    className={`p-2 rounded-xl border flex items-center gap-2 transition-all ${
-                      backgroundTheme === t.value
-                        ? 'border-violet-500 bg-[#1A1A24]'
-                        : 'border-[#232332] bg-[#161620] text-slate-400'
-                    }`}
-                  >
-                    <div className={`w-5 h-5 rounded-md ${t.preview}`} />
-                    <span className="text-xs font-semibold text-slate-200">{t.label}</span>
-                  </button>
-                ))}
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-slate-300">Stage Atmosphere Theme</label>
+                <span className="text-[10px] text-amber-400 font-semibold flex items-center gap-1">
+                  <Gem className="w-3 h-3 fill-amber-400" />
+                  <span>Premium themes unlockable</span>
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1">
+                {ROOM_THEMES.map((t) => {
+                  const unlocked = isRoomThemeUnlocked(t.id);
+                  const isSelected = backgroundTheme === t.gradientClass;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => {
+                        if (unlocked) {
+                          setBackgroundTheme(t.gradientClass);
+                        }
+                      }}
+                      className={`p-2 rounded-xl border flex items-center justify-between transition-all text-left ${
+                        isSelected
+                          ? 'border-violet-500 bg-[#1A1A24] ring-1 ring-violet-500/40'
+                          : 'border-[#232332] bg-[#161620] text-slate-400'
+                      } ${!unlocked ? 'opacity-65 cursor-not-allowed' : ''}`}
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <div className={`w-5 h-5 rounded-md shrink-0 bg-gradient-to-r ${t.previewGradient} border border-white/20`} />
+                        <div className="truncate">
+                          <div className="text-xs font-semibold text-slate-200 truncate">{t.name}</div>
+                          <div className="text-[9px] text-slate-400">
+                            {t.priceDiamonds === 0 ? 'Free' : unlocked ? 'Unlocked' : `💎 ${t.priceDiamonds}`}
+                          </div>
+                        </div>
+                      </div>
+                      {!unlocked && <Lock className="w-3 h-3 text-amber-400 shrink-0 ml-1" />}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

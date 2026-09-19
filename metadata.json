@@ -1,5 +1,5 @@
 {
-  "name": "AuraVoice Live",
+  "name": "Aura Live",
   "description": "Production-grade social voice-party application with live audio rooms, interactive gift animations, host payouts, VIP memberships, ranking leaderboards, complete web admin panel, and full-stack architecture.",
   "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

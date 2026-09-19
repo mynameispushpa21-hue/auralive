@@ -23,7 +23,7 @@ export const VIPCenterScreen: React.FC<VIPCenterScreenProps> = ({ onOpenCoinStor
   };
 
   return (
-    <div id="vip-center-screen" className="flex flex-col gap-4 pb-20 px-4 text-slate-100 bg-[#0B0B0F]">
+    <div id="vip-center-screen" className="flex flex-col gap-4 pb-20 px-4 text-slate-100 bg-transparent">
       {/* Header Banner */}
       <div className="mt-2 p-4 rounded-3xl bg-[#121217] border border-violet-500/40 shadow-2xl relative overflow-hidden">
         <div className="relative z-10 flex items-center justify-between">

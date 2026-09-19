@@ -17,7 +17,7 @@ export const RankingsScreen: React.FC<RankingsScreenProps> = ({ onBack }) => {
   const remaining = currentList.slice(3);
 
   return (
-    <div id="rankings-screen" className="flex flex-col gap-4 pb-20 px-4 text-slate-100 bg-[#0B0B0F]">
+    <div id="rankings-screen" className="flex flex-col gap-4 pb-20 px-4 text-slate-100 bg-transparent">
       {/* Header */}
       <div className="mt-2 flex items-center gap-2.5">
         {onBack && (

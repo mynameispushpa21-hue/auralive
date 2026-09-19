@@ -107,7 +107,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onOpenGiftModal 
   );
 
   return (
-    <div id="messages-screen" className="flex flex-col h-full text-slate-100 bg-[#0B0B0F]">
+    <div id="messages-screen" className="flex flex-col h-full text-slate-100 bg-transparent">
       {activeConversation && activePartner ? (
         /* ================================================================ */
         /* 1-ON-1 CHAT DETAIL VIEW                                          */
