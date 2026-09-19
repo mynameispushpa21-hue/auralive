@@ -13,7 +13,6 @@ import {
   Crown,
   Zap,
   Users,
-  RefreshCw,
   LogIn,
   LogOut,
   UserPlus,
@@ -23,7 +22,6 @@ const AppContent: React.FC = () => {
   const [activePlatformView, setActivePlatformView] = useState<'mobile' | 'admin'>('mobile');
   const {
     currentUser,
-    switchDemoUser,
     allUsers,
     isAuthenticated,
     isGuest,
@@ -98,26 +96,8 @@ const AppContent: React.FC = () => {
           </button>
         </div>
 
-        {/* Right Persona Quick-Switcher, Balances & Auth Controls */}
+        {/* Right Balances & Auth Controls */}
         <div className="flex items-center gap-2.5">
-          {/* Quick Persona Switcher */}
-          <div className="hidden xl:flex items-center gap-1.5 bg-slate-800/80 px-2.5 py-1 rounded-xl border border-slate-700">
-            <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1">
-              <RefreshCw className="w-3 h-3 text-amber-400" /> Persona:
-            </span>
-            <select
-              value={currentUser.id}
-              onChange={(e) => switchDemoUser(e.target.value)}
-              className="bg-transparent text-xs text-white font-bold focus:outline-hidden cursor-pointer"
-            >
-              {allUsers.map((u) => (
-                <option key={u.id} value={u.id} className="bg-slate-900 text-white">
-                  {u.displayName} ({u.isHost ? 'Host' : u.vipTier.toUpperCase()})
-                </option>
-              ))}
-            </select>
-          </div>
-
           {/* Quick Balances pill */}
           <div className="flex items-center gap-2 text-xs font-bold px-3 py-1 rounded-xl bg-slate-800/60 border border-slate-700/80">
             <span className="text-amber-300 flex items-center gap-1">

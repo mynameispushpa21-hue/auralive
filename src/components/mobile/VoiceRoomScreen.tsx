@@ -534,7 +534,7 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
                       className="p-2.5 rounded-xl bg-gradient-to-r from-pink-600 via-rose-600 to-amber-600 text-white flex items-center justify-center gap-1.5 col-span-2 shadow-md hover:brightness-110"
                     >
                       <Heart className="w-4 h-4 fill-white" />
-                      <span>Seat My CP Partner ({allUsers.find((u) => u.id === currentUser.cpPartnerId)?.displayName || 'Luna Valente'}) Here 💕</span>
+                      <span>Seat My CP Partner ({allUsers.find((u) => u.id === currentUser.cpPartnerId)?.displayName || 'Partner'}) Here 💕</span>
                     </button>
                   </>
                 )}

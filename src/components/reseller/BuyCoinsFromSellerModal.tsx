@@ -43,7 +43,7 @@ export const BuyCoinsFromSellerModal: React.FC<BuyCoinsFromSellerModalProps> = (
   } = useAppState();
 
   const [selectedSellerId, setSelectedSellerId] = useState<string>(
-    initialSellerId || activeSellers[0]?.id || 'usr_seller_001'
+    initialSellerId || activeSellers[0]?.id || ''
   );
   const [selectedCoins, setSelectedCoins] = useState<number>(10000);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('WhatsApp Direct Chat');

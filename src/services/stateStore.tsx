@@ -312,15 +312,47 @@ interface StateContextType {
 
 const StateContext = createContext<StateContextType | null>(null);
 
+const isDemoUser = (u: any): boolean => {
+  if (!u) return true;
+  const id = String(u.id || '');
+  const email = String(u.email || '');
+  const username = String(u.username || '');
+  const displayName = String(u.displayName || '');
+  return (
+    id.startsWith('usr_demo') ||
+    id.startsWith('usr_00') ||
+    id === 'usr_seller_001' ||
+    id === 'usr_me_001' ||
+    id === 'usr_guest' ||
+    email.endsWith('@auravoice.live') ||
+    username.startsWith('alex_') ||
+    username.startsWith('luna_') ||
+    username.startsWith('elena_') ||
+    username.startsWith('marcus_') ||
+    username.startsWith('victor_') ||
+    displayName.toLowerCase().includes('demo') ||
+    displayName.includes('Alex Rider') ||
+    displayName.includes('Luna Valente') ||
+    displayName.includes('Elena Rostova') ||
+    displayName.includes('Marcus Vance') ||
+    displayName.includes('Victor Vance') ||
+    displayName.includes('Zack Walker') ||
+    displayName.includes('Sophia Chen') ||
+    displayName.includes('Chloe Bennett')
+  );
+};
+
 export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // All Users loaded from storage or presets
+  // All Users loaded from storage or presets (demo users purged)
   const [allUsers, setAllUsers] = useState<UserProfile[]>(() => {
     try {
       const stored = localStorage.getItem('auravoice_custom_users');
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
-          return parsed;
+          const cleaned = parsed.filter((u: UserProfile) => !isDemoUser(u));
+          localStorage.setItem('auravoice_custom_users', JSON.stringify(cleaned));
+          return cleaned;
         }
       }
     } catch {
@@ -329,12 +361,17 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return [];
   });
 
-  // Current User: check localStorage, otherwise default to INITIAL_CURRENT_USER
+  // Current User: check localStorage, purge if demo user, otherwise default to INITIAL_CURRENT_USER
   const [currentUser, setCurrentUser] = useState<UserProfile>(() => {
     try {
       const savedUser = localStorage.getItem('auravoice_current_user');
       if (savedUser) {
-        return JSON.parse(savedUser);
+        const parsed = JSON.parse(savedUser);
+        if (!isDemoUser(parsed)) {
+          return parsed;
+        }
+        localStorage.removeItem('auravoice_current_user');
+        localStorage.removeItem('auravoice_auth_user_id');
       }
       const savedUserId = localStorage.getItem('auravoice_auth_user_id');
       if (savedUserId) {
@@ -342,7 +379,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (stored) {
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed)) {
-            const found = parsed.find((u: UserProfile) => u.id === savedUserId);
+            const found = parsed.find((u: UserProfile) => u.id === savedUserId && !isDemoUser(u));
             if (found) return found;
           }
         }
@@ -353,15 +390,52 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return INITIAL_CURRENT_USER;
   });
 
-  // Authentication State: If no saved auth token in localStorage, default to false so app opens on login page!
+  // Authentication State: If no saved auth token or if demo user, default to false so app opens on login page!
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     try {
+      const savedUser = localStorage.getItem('auravoice_current_user');
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        if (isDemoUser(parsed)) return false;
+      }
       const savedUserId = localStorage.getItem('auravoice_auth_user_id');
+      if (!savedUserId || savedUserId.startsWith('usr_demo') || savedUserId.startsWith('usr_00') || savedUserId === 'usr_seller_001' || savedUserId === 'usr_me_001') {
+        return false;
+      }
       return !!savedUserId;
     } catch {
       return false;
     }
   });
+
+  // Clean demo users from localStorage upon startup
+  useEffect(() => {
+    try {
+      const savedUserStr = localStorage.getItem('auravoice_current_user');
+      if (savedUserStr) {
+        const parsed = JSON.parse(savedUserStr);
+        if (isDemoUser(parsed)) {
+          localStorage.removeItem('auravoice_current_user');
+          localStorage.removeItem('auravoice_auth_user_id');
+          setCurrentUser(INITIAL_CURRENT_USER);
+          setIsAuthenticated(false);
+        }
+      }
+      const stored = localStorage.getItem('auravoice_custom_users');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          const cleaned = parsed.filter((u: UserProfile) => !isDemoUser(u));
+          if (cleaned.length !== parsed.length) {
+            localStorage.setItem('auravoice_custom_users', JSON.stringify(cleaned));
+            setAllUsers(cleaned);
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'signup' | 'forgot_password'>('login');
@@ -752,7 +826,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       phone: 'Phone SMS',
     };
 
-    let targetUser = allUsers.find((u) => u.email === `${provider}_user@auravoice.live`) || allUsers[0];
+    let targetUser = allUsers.find((u) => u.email === `${provider}_user@auravoice.io` && !isDemoUser(u));
     if (!targetUser) {
       const generatedId = `usr_${Date.now()}`;
       const generatedNum = String(Math.floor(100000 + Math.random() * 900000));
@@ -761,7 +835,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         numericId: generatedNum,
         username: `${provider}_user_${generatedNum.substring(2)}`,
         displayName: `${providerNames[provider] || provider} User`,
-        email: `${provider}_user@auravoice.live`,
+        email: `${provider}_user_${generatedNum}@auravoice.io`,
         phone: '',
         bio: 'Hello! I am a new member on AuraVoice.',
         country: 'Global',

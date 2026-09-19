@@ -24,14 +24,14 @@ export const GiftModal: React.FC<GiftModalProps> = ({
   const [selectedGiftId, setSelectedGiftId] = useState<string>('gift_01');
   const [comboMultiplier, setComboMultiplier] = useState<number>(1);
   const [selectedReceiverId, setSelectedReceiverId] = useState<string>(
-    targetUser?.id || activeRoom?.hostId || 'user_01'
+    targetUser?.id || activeRoom?.hostId || ''
   );
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
 
   // Sync selected receiver when modal opens
   useEffect(() => {
     if (isOpen) {
-      const defaultReceiver = targetUser?.id || activeRoom?.hostId || 'user_01';
+      const defaultReceiver = targetUser?.id || activeRoom?.hostId || '';
       setSelectedReceiverId(defaultReceiver);
       setErrorNotice(null);
     }
@@ -83,14 +83,6 @@ export const GiftModal: React.FC<GiftModalProps> = ({
         availableReceivers.push(seat.user);
       }
     });
-  }
-
-  // Include Luna Valente if available (matches screenshot)
-  const luna = allUsers.find(
-    (u) => u.displayName.toLowerCase().includes('luna') || u.id === 'user_02'
-  );
-  if (luna && !availableReceivers.some((u) => u.id === luna.id)) {
-    availableReceivers.push(luna);
   }
 
   if (availableReceivers.length === 0) {
@@ -183,9 +175,7 @@ export const GiftModal: React.FC<GiftModalProps> = ({
               const isSelected = selectedReceiverId === user.id;
               const isHost =
                 user.id === activeRoom?.hostId ||
-                user.role === 'host' ||
-                user.id === 'user_01' ||
-                user.displayName.toLowerCase().includes('alex');
+                user.role === 'host';
 
               return (
                 <button

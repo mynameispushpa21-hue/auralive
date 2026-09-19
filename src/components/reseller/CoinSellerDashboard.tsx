@@ -57,7 +57,6 @@ export const CoinSellerDashboard: React.FC<CoinSellerDashboardProps> = ({
     updateSellerProfileSettings,
     applyForSellerRole,
     quickUpgradeToDemoSeller,
-    switchDemoUser,
   } = useAppState();
 
   const isSeller =
@@ -283,18 +282,8 @@ export const CoinSellerDashboard: React.FC<CoinSellerDashboardProps> = ({
           </div>
         </div>
 
-        {/* Demo Switcher & Online Status Toggle */}
+        {/* Online Status Toggle */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Quick Demo Master Seller Switcher */}
-          <button
-            onClick={() => switchDemoUser('usr_seller_001')}
-            className="px-3 py-1.5 rounded-xl bg-[#161624] border border-amber-500/30 text-amber-300 text-xs font-semibold hover:bg-amber-500/10 transition-all flex items-center gap-1.5"
-            title="Switch to Demo Master Reseller Victor Vance (1.85M Coins Inventory)"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Load Demo Merchant (1.85M 🪙)</span>
-          </button>
-
           {isSeller && (
             <div className="flex items-center gap-1.5 bg-[#161624] border border-[#26263A] p-1 rounded-xl text-xs">
               <span className="text-[10px] text-slate-400 pl-1 font-bold">STATUS:</span>
@@ -348,14 +337,7 @@ export const CoinSellerDashboard: React.FC<CoinSellerDashboardProps> = ({
                 className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-slate-950 font-bold text-sm shadow-xl shadow-amber-500/20 hover:brightness-110 flex items-center justify-center gap-2"
               >
                 <Zap className="w-4 h-4" />
-                Activate Instant Demo Reseller Mode (+1,000,000 Coins Inventory)
-              </button>
-
-              <button
-                onClick={() => switchDemoUser('usr_seller_001')}
-                className="w-full py-3 px-4 rounded-2xl bg-[#1A1A28] border border-[#2D2D42] text-slate-200 font-semibold text-xs hover:bg-[#222236] transition-colors"
-              >
-                Switch to Master Agent Profile (Victor Vance)
+                Activate Reseller Account (+1,000,000 Coins Inventory)
               </button>
             </div>
           )}

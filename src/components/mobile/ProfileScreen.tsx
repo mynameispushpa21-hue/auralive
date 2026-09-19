@@ -11,16 +11,12 @@ import {
   Users,
   Heart,
   Eye,
-  ShieldCheck,
   ChevronRight,
   Sparkles,
   Plus,
-  RefreshCw,
   X,
   Check,
   LogOut,
-  LogIn,
-  KeyRound,
   UserPlus,
   Lock,
   Copy,
@@ -87,7 +83,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   const {
     currentUser,
     updateCurrentUserProfile,
-    switchDemoUser,
     allUsers,
     platformConfig,
     isAuthenticated,
@@ -172,17 +167,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
   return (
     <div id="profile-screen" className="flex flex-col gap-4 pb-20 px-4 text-slate-100 bg-transparent">
-      {/* Top Action Buttons (Settings Gear & Edit) */}
+      {/* Top Action Buttons (Settings Gear, Edit & LogOut) */}
       <div className="mt-1 flex items-center justify-between px-1">
         <span className="text-xs font-black uppercase tracking-wider text-slate-400">My Profile</span>
         <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => setIsSettingsModalOpen(true)}
-            className="p-2 rounded-xl bg-[#121217] hover:bg-[#1A1A24] text-slate-300 hover:text-white border border-[#232332] transition-colors"
-            title="App Settings & Audio"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
           <button
             onClick={() => setIsEditModalOpen(true)}
             className="p-2 rounded-xl bg-[#121217] hover:bg-[#1A1A24] text-slate-300 hover:text-white border border-[#232332] transition-colors"
@@ -190,6 +178,22 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           >
             <Edit3 className="w-4 h-4" />
           </button>
+          <button
+            onClick={() => setIsSettingsModalOpen(true)}
+            className="p-2 rounded-xl bg-[#121217] hover:bg-[#1A1A24] text-slate-300 hover:text-white border border-[#232332] transition-colors"
+            title="App Settings & Audio"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+          {!currentUser.isGuest && (
+            <button
+              onClick={() => setIsSignOutModalOpen(true)}
+              className="p-2 rounded-xl bg-[#121217] hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 border border-[#232332] transition-colors"
+              title="Log Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -952,117 +956,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
               <ChevronRight className="w-4 h-4 text-amber-400 group-hover:text-white transition-colors" />
             </button>
           </div>
-        )}
-      </div>
-
-      {/* Switch Demo Persona */}
-      <div className="p-3.5 rounded-2xl bg-[#121217] border border-[#232332]">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-            <RefreshCw className="w-3.5 h-3.5 text-violet-400" /> Switch Demo Persona
-          </span>
-          <span className="text-[10px] text-slate-500">Live Testing Role</span>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          {allUsers.slice(0, 4).map((u) => (
-            <button
-              key={u.id}
-              onClick={() => switchDemoUser(u.id)}
-              className={`p-2 rounded-xl border flex items-center gap-2 text-left transition-all ${
-                currentUser.id === u.id
-                  ? 'bg-violet-600/20 border-violet-500 text-white shadow-xs'
-                  : 'bg-[#1A1A24] border-[#232332] text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <img src={u.avatar} alt={u.displayName} className="w-7 h-7 rounded-full object-cover shrink-0" />
-              <div className="truncate">
-                <p className="text-xs font-bold truncate text-white">{u.displayName}</p>
-                <p className="text-[9px] text-violet-300 font-semibold">{u.isHost ? 'Host' : u.vipTier.toUpperCase()}</p>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Account & Security Section */}
-      <div className="p-4 rounded-3xl bg-[#121217] border border-[#232332] space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Account & Security
-          </span>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-bold border border-emerald-500/20">
-            {currentUser.isGuest ? 'Guest User' : 'Verified'}
-          </span>
-        </div>
-
-        <div className="space-y-2 text-xs">
-          <div className="flex items-center justify-between p-2 rounded-xl bg-[#1A1A24] border border-[#232332]/60">
-            <span className="text-slate-400 text-[11px]">Email</span>
-            <span className="font-bold text-slate-200">{currentUser.email}</span>
-          </div>
-
-          <div className="flex items-center justify-between p-2 rounded-xl bg-[#1A1A24] border border-[#232332]/60">
-            <span className="text-slate-400 text-[11px]">Username</span>
-            <span className="font-bold text-violet-300">@{currentUser.username}</span>
-          </div>
-
-          <div className="flex items-center justify-between p-2 rounded-xl bg-[#1A1A24] border border-[#232332]/60">
-            <span className="text-slate-400 text-[11px]">Country</span>
-            <span className="font-bold text-slate-200 flex items-center gap-1">
-              <span>{currentUser.countryFlag}</span>
-              <span>{currentUser.country || 'United States'}</span>
-            </span>
-          </div>
-
-          {/* Replay Splash Screen */}
-          <button
-            onClick={() => {
-              window.dispatchEvent(new CustomEvent('auravoice_trigger_splash'));
-              audioEngine.playSoundEffect('chime');
-            }}
-            className="w-full flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-cyan-950/40 to-[#1A1A24] hover:bg-cyan-950/60 border border-cyan-500/30 transition-all text-left group"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="p-1.5 rounded-lg bg-cyan-500/20 text-cyan-300 group-hover:scale-105 transition-transform">
-                <Sparkles className="w-3.5 h-3.5" />
-              </div>
-              <div>
-                <span className="text-xs font-bold text-white group-hover:text-cyan-200">Replay Splash Screen</span>
-                <p className="text-[10px] text-slate-400">View entry screen with Skip</p>
-              </div>
-            </div>
-            <ChevronRight className="w-3.5 h-3.5 text-cyan-400/60 group-hover:text-cyan-300 group-hover:translate-x-0.5 transition-all" />
-          </button>
-        </div>
-
-        {/* Account Actions: Reset Password & Switch Account */}
-        <div className="grid grid-cols-2 gap-2 pt-1">
-          <button
-            onClick={() => openAuthModal('forgot_password')}
-            className="py-2.5 px-3 rounded-xl bg-[#1A1A24] hover:bg-[#232332] border border-[#232332] text-slate-300 hover:text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-            <span>Reset Password</span>
-          </button>
-
-          <button
-            onClick={() => openAuthModal('login')}
-            className="py-2.5 px-3 rounded-xl bg-[#1A1A24] hover:bg-[#232332] border border-[#232332] text-slate-300 hover:text-white text-[11px] font-bold flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <LogIn className="w-3.5 h-3.5 text-violet-400" />
-            <span>Switch Account</span>
-          </button>
-        </div>
-
-        {/* Sign Out Trigger */}
-        {!currentUser.isGuest && (
-          <button
-            onClick={() => setIsSignOutModalOpen(true)}
-            className="w-full py-2.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 font-bold text-xs flex items-center justify-center gap-2 transition-colors mt-2"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Log Out of AuraVoice</span>
-          </button>
         )}
       </div>
 
