@@ -66,8 +66,10 @@ export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile
   const [currentTab, setCurrentTab] = useState<AdminTab>('dashboard');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  // Admin authentication state: ALWAYS strictly locked by default so regular users cannot see the admin panel
-  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
+  // Admin authentication state: check sessionStorage or require password
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(() => {
+    return sessionStorage.getItem('auravoice_admin_authenticated') === 'true';
+  });
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -75,6 +77,7 @@ export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile
   const handleUnlockAdmin = (e: React.FormEvent) => {
     e.preventDefault();
     if (adminPasswordInput === 'Admin@786') {
+      sessionStorage.setItem('auravoice_admin_authenticated', 'true');
       setIsAdminUnlocked(true);
       setPasswordError(null);
       setAdminPasswordInput('');
