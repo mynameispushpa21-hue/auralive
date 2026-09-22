@@ -66,10 +66,8 @@ export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile
   const [currentTab, setCurrentTab] = useState<AdminTab>('dashboard');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  // Admin authentication state: password required to access admin panel
-  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(() => {
-    return sessionStorage.getItem('auravoice_admin_authenticated') === 'true';
-  });
+  // Admin authentication state: ALWAYS strictly locked by default so regular users cannot see the admin panel
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
   const [adminPasswordInput, setAdminPasswordInput] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -77,12 +75,11 @@ export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile
   const handleUnlockAdmin = (e: React.FormEvent) => {
     e.preventDefault();
     if (adminPasswordInput === 'Admin@786') {
-      sessionStorage.setItem('auravoice_admin_authenticated', 'true');
       setIsAdminUnlocked(true);
       setPasswordError(null);
       setAdminPasswordInput('');
     } else {
-      setPasswordError('Invalid password. Access denied.');
+      setPasswordError('Access Denied: Incorrect administrator password.');
     }
   };
 
@@ -91,6 +88,11 @@ export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile
     setIsAdminUnlocked(false);
     setAdminPasswordInput('');
     setPasswordError(null);
+  };
+
+  const handleExitToMobile = () => {
+    handleLockAdmin();
+    onSwitchToMobile();
   };
 
   // If admin panel is locked, render the password challenge screen
@@ -109,13 +111,13 @@ export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile
                 <Lock className="w-8 h-8 text-amber-400 animate-pulse" />
               </div>
             </div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 text-[10px] font-bold tracking-wider uppercase mb-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[10px] font-bold tracking-wider uppercase mb-2">
               <KeyRound className="w-3 h-3" />
-              <span>Admin Security Portal</span>
+              <span>Admin Access Restricted</span>
             </div>
-            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">Admin Console Access</h2>
+            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">Admin Panel Locked</h2>
             <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-              Please enter the administrator password to unlock platform operations and telemetry.
+              Regular users cannot view this panel. Administrator authorization and password are required to unlock.
             </p>
           </div>
 
@@ -133,7 +135,7 @@ export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile
                     setAdminPasswordInput(e.target.value);
                     if (passwordError) setPasswordError(null);
                   }}
-                  placeholder="Enter admin password"
+                  placeholder="Enter administrator password"
                   autoFocus
                   required
                   className="w-full bg-transparent text-white text-sm font-medium placeholder:text-slate-500 focus:outline-hidden"
@@ -171,11 +173,11 @@ export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile
             <button
               id="admin-panel-back-to-mobile"
               type="button"
-              onClick={onSwitchToMobile}
+              onClick={handleExitToMobile}
               className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Return to Live Mobile App</span>
+              <span>Return to Mobile App Client</span>
             </button>
           </div>
         </div>
@@ -322,7 +324,7 @@ export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile
               <span>Lock Admin Console</span>
             </button>
             <button
-              onClick={onSwitchToMobile}
+              onClick={handleExitToMobile}
               className="w-full py-2.5 rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-amber-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:brightness-110 active:scale-98 transition-all"
             >
               <Radio className="w-4 h-4" />

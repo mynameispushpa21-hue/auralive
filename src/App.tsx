@@ -28,6 +28,8 @@ const AppLayout: React.FC = () => {
     authModalMode,
   } = useAppState();
 
+  const isAdminUser = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center select-none">
       {/* GLOBAL TOP NAVIGATION & ROUTE CONTROL BAR */}
@@ -56,7 +58,7 @@ const AppLayout: React.FC = () => {
           </div>
         </div>
 
-        {/* Center Route Switcher */}
+        {/* Center Route Switcher - Regular users cannot see the Admin Panel */}
         <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-2xl border border-slate-800 shadow-inner">
           <button
             onClick={() => navigate('/')}
@@ -70,17 +72,20 @@ const AppLayout: React.FC = () => {
             <span>Mobile App Client (/)</span>
           </button>
 
-          <button
-            onClick={() => navigate('/admin')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-              isAdminRoute
-                ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <LayoutDashboard className="w-3.5 h-3.5" />
-            <span>Web Admin Panel (/admin)</span>
-          </button>
+          {/* Admin Panel button is hidden from normal users - only visible if logged in as Admin or actively on admin route */}
+          {(isAdminUser || isAdminRoute) && (
+            <button
+              onClick={() => navigate('/admin')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                isAdminRoute
+                  ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-md'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              <span>Admin Panel</span>
+            </button>
+          )}
 
           <button
             onClick={() => {
