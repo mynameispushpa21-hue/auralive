@@ -4,6 +4,7 @@ import {
   Mail,
   Lock,
   User,
+  Phone,
   Eye,
   EyeOff,
   CheckCircle2,
@@ -26,6 +27,7 @@ export const AuthScreen: React.FC = () => {
   // Sign Up State
   const [signupUsername, setSignupUsername] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
+  const [signupPhone, setSignupPhone] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
   const [showSignupPassword, setShowSignupPassword] = useState(false);
@@ -87,6 +89,17 @@ export const AuthScreen: React.FC = () => {
       return;
     }
 
+    if (!signupPhone.trim()) {
+      setErrorMessage('Please enter your phone number.');
+      return;
+    }
+
+    const cleanPhone = signupPhone.trim().replace(/\D/g, '');
+    if (cleanPhone.length < 7) {
+      setErrorMessage('Please enter a valid phone number (at least 7 digits).');
+      return;
+    }
+
     if (signupPassword.length < 6) {
       setErrorMessage('Password must be at least 6 characters.');
       return;
@@ -108,6 +121,7 @@ export const AuthScreen: React.FC = () => {
         username: signupUsername.trim(),
         displayName: signupUsername.trim(),
         email: signupEmail.trim(),
+        phone: signupPhone.trim(),
         password: signupPassword,
         gender: 'other',
         country: 'Global',
@@ -408,6 +422,22 @@ export const AuthScreen: React.FC = () => {
                 value={signupEmail}
                 onChange={(e) => setSignupEmail(e.target.value)}
                 placeholder="Enter your email"
+                required
+                className="w-full bg-transparent text-[#231A4C] text-sm font-medium placeholder:text-[#9E9BB5] focus:outline-hidden"
+              />
+            </div>
+          </div>
+
+          {/* Phone Number Field */}
+          <div>
+            <label className="block text-xs font-bold text-[#3B3463] mb-1.5 px-0.5">Phone Number</label>
+            <div className="relative flex items-center bg-white rounded-2xl px-4 py-3.5 shadow-[0_4px_20px_rgba(112,96,214,0.08)] border border-[#EBE8F8] focus-within:border-[#7C7AF8] focus-within:ring-2 focus-within:ring-[#7C7AF8]/20 transition-all">
+              <Phone className="w-5 h-5 text-[#8D8BA7] mr-3 shrink-0" strokeWidth={1.8} />
+              <input
+                type="tel"
+                value={signupPhone}
+                onChange={(e) => setSignupPhone(e.target.value)}
+                placeholder="Enter your phone number (e.g. +1 555 019 2831)"
                 required
                 className="w-full bg-transparent text-[#231A4C] text-sm font-medium placeholder:text-[#9E9BB5] focus:outline-hidden"
               />

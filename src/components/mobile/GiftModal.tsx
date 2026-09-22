@@ -72,7 +72,7 @@ export const GiftModal: React.FC<GiftModalProps> = ({
     gifts[0];
   const totalCost = (selectedGift?.coinPrice || 10) * comboMultiplier;
 
-  // Potential receivers: Host + seated guests + demo partner (matching screenshot: Alex Rider Host + Luna Valente)
+  // Potential receivers: Host + seated guests in active room
   const availableReceivers: UserProfile[] = [];
   if (activeRoom) {
     if (!availableReceivers.some((u) => u.id === activeRoom.host.id)) {

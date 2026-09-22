@@ -82,7 +82,7 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
   const [chatInput, setChatInput] = useState('');
   const [showSoundboard, setShowSoundboard] = useState(false);
   const [selectedSeatForAction, setSelectedSeatForAction] = useState<MicSeat | null>(null);
-  const [demoCpPairs, setDemoCpPairs] = useState<Record<number, boolean>>({});
+  const [cpWireLightPairs, setCpWireLightPairs] = useState<Record<number, boolean>>({});
   const [floatingHearts, setFloatingHearts] = useState<{ id: number; x: number }[]>([]);
   const [isAmbientPlaying, setIsAmbientPlaying] = useState(false);
   const [isRealMicActive, setIsRealMicActive] = useState(false);
@@ -197,8 +197,8 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
     return pairs;
   }, [sanitizedSeats]);
 
-  const toggleDemoCpPair = (pairIdx: number) => {
-    setDemoCpPairs((prev) => {
+  const toggleCpWireLight = (pairIdx: number) => {
+    setCpWireLightPairs((prev) => {
       const next = !prev[pairIdx];
       if (next) {
         audioEngine.playSoundEffect('magic');
@@ -417,15 +417,15 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
             <span className="tracking-wide">Couple Mic Seats</span>
           </div>
           <button
-            onClick={() => toggleDemoCpPair(0)}
+            onClick={() => toggleCpWireLight(0)}
             className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 border transition-all ${
-              demoCpPairs[0]
+              cpWireLightPairs[0]
                 ? 'bg-gradient-to-r from-pink-600 to-rose-600 text-white border-pink-400 shadow-[0_0_12px_rgba(244,63,94,0.6)]'
                 : 'bg-[#221c17]/90 text-amber-200/90 border-[#3f3427] hover:border-pink-500/50'
             }`}
           >
             <Sparkles className="w-2.5 h-2.5 text-pink-300" />
-            <span>{demoCpPairs[0] ? 'Wire Light: ON 💕' : 'Test Wire Light'}</span>
+            <span>{cpWireLightPairs[0] ? 'Wire Light: ON 💕' : 'CP Wire Light'}</span>
           </button>
         </div>
 
@@ -441,7 +441,7 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
               isRealMicActive={isRealMicActive}
               localMicVolume={localMicVolume}
               isModerator={isModerator}
-              isSimulatedCp={demoCpPairs[pair.pairIndex] || false}
+              isSimulatedCp={cpWireLightPairs[pair.pairIndex] || false}
               onSelectSeatForAction={(seat) => setSelectedSeatForAction(seat)}
               onTakeSeat={(seatIndex) => takeSeat(seatIndex)}
             />
@@ -539,11 +539,11 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
                   </>
                 )}
 
-                {/* CP Demo Wire Light Toggle */}
+                {/* CP Wire Light Toggle */}
                 <button
                   onClick={() => {
                     const pIdx = Math.floor(selectedSeatForAction.seatIndex / 2);
-                    toggleDemoCpPair(pIdx);
+                    toggleCpWireLight(pIdx);
                     setSelectedSeatForAction(null);
                   }}
                   className="p-2 rounded-xl bg-[#221a18] hover:bg-[#2e2320] text-amber-200 border border-[#48372b] col-span-2 flex items-center justify-center gap-1.5"

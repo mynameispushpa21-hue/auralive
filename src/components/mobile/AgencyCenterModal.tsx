@@ -78,17 +78,11 @@ export const AgencyCenterModal: React.FC<AgencyCenterModalProps> = ({
   const [withdrawMethod, setWithdrawMethod] = useState<'usdt' | 'bank' | 'binance'>('usdt');
   const [withdrawAddress, setWithdrawAddress] = useState('');
 
-  // Mock applications for demonstration
-  const [pendingApplications, setPendingApplications] = useState([
-    { id: 'app_1', userId: 'user_sarah', name: 'Sarah Star', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150', followers: 1240, appliedAt: '10 mins ago', message: 'Hi! Experienced singing host looking for a top agency.' },
-    { id: 'app_2', userId: 'user_alex', name: 'Alex Beat', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', followers: 3500, appliedAt: '1 hour ago', message: 'DJ and live streamer active every evening.' }
-  ]);
+  // Host applications
+  const [pendingApplications, setPendingApplications] = useState<Array<{ id: string; userId: string; name: string; avatar: string; followers: number; appliedAt: string; message: string }>>([]);
 
-  // Mock withdrawal bills
-  const [withdrawalBills, setWithdrawalBills] = useState([
-    { id: 'BILL-8921', date: '2026-08-28', diamonds: 50000, usd: 250.00, method: 'USDT (TRC20)', status: 'completed' },
-    { id: 'BILL-7412', date: '2026-08-15', diamonds: 120000, usd: 600.00, method: 'Bank Wire', status: 'completed' },
-  ]);
+  // Withdrawal bills
+  const [withdrawalBills, setWithdrawalBills] = useState<Array<{ id: string; date: string; diamonds: number; usd: number; method: string; status: string }>>([]);
 
   // Members list
   const agencyMembers = useMemo(() => {

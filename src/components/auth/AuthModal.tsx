@@ -5,6 +5,7 @@ import {
   Mail,
   Lock,
   User,
+  Phone,
   Eye,
   EyeOff,
   Sparkles,
@@ -94,6 +95,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [signupDisplayName, setSignupDisplayName] = useState('');
   const [signupUsername, setSignupUsername] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
+  const [signupPhone, setSignupPhone] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
   const [signupGender, setSignupGender] = useState<'male' | 'female' | 'other'>('female');
@@ -189,6 +191,17 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
+    if (!signupPhone.trim()) {
+      setErrorMessage('Please enter your phone number.');
+      return;
+    }
+
+    const cleanPhone = signupPhone.trim().replace(/\D/g, '');
+    if (cleanPhone.length < 7) {
+      setErrorMessage('Please enter a valid phone number (at least 7 digits).');
+      return;
+    }
+
     if (signupPassword.length < 6) {
       setErrorMessage('Password must be at least 6 characters.');
       return;
@@ -211,6 +224,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         username: signupUsername.trim(),
         displayName: signupDisplayName.trim() || signupUsername.trim(),
         email: signupEmail.trim(),
+        phone: signupPhone.trim(),
         password: signupPassword,
         gender: signupGender,
         country: signupCountry,
@@ -259,7 +273,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         return;
       }
       setForgotStep(2);
-      setForgotOtp('749201'); // pre-fill demo OTP
+      setForgotOtp('');
     } else if (forgotStep === 2) {
       if (forgotOtp.length < 4) {
         setErrorMessage('Please enter the 6-digit verification code.');
@@ -649,6 +663,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     value={signupEmail}
                     onChange={(e) => setSignupEmail(e.target.value)}
                     placeholder="you@example.com"
+                    required
+                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#1A1A24] border border-[#232332] text-white text-xs focus:outline-hidden focus:border-violet-500"
+                  />
+                </div>
+              </div>
+
+              {/* Phone Number */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                  Phone Number
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <Phone className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="tel"
+                    value={signupPhone}
+                    onChange={(e) => setSignupPhone(e.target.value)}
+                    placeholder="+1 (555) 000-0000"
                     required
                     className="w-full pl-9 pr-3 py-2 rounded-xl bg-[#1A1A24] border border-[#232332] text-white text-xs focus:outline-hidden focus:border-violet-500"
                   />

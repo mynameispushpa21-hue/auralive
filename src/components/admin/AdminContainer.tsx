@@ -19,6 +19,14 @@ import {
   CreditCard,
   Gamepad2,
   ShoppingBag,
+  Lock,
+  Unlock,
+  KeyRound,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  ArrowLeft,
+  LogOut,
 } from 'lucide-react';
 import { AdminDashboard } from './AdminDashboard';
 import { AdminUsersTable } from './AdminUsersTable';
@@ -57,6 +65,123 @@ export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile
   const { withdrawals, hostApplications, agencyApplications } = useAppState();
   const [currentTab, setCurrentTab] = useState<AdminTab>('dashboard');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  // Admin authentication state: password required to access admin panel
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(() => {
+    return sessionStorage.getItem('auravoice_admin_authenticated') === 'true';
+  });
+  const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
+  const handleUnlockAdmin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (adminPasswordInput === 'Admin@786') {
+      sessionStorage.setItem('auravoice_admin_authenticated', 'true');
+      setIsAdminUnlocked(true);
+      setPasswordError(null);
+      setAdminPasswordInput('');
+    } else {
+      setPasswordError('Invalid password. Access denied.');
+    }
+  };
+
+  const handleLockAdmin = () => {
+    sessionStorage.removeItem('auravoice_admin_authenticated');
+    setIsAdminUnlocked(false);
+    setAdminPasswordInput('');
+    setPasswordError(null);
+  };
+
+  // If admin panel is locked, render the password challenge screen
+  if (!isAdminUnlocked) {
+    return (
+      <div id="admin-lock-screen" className="w-full min-h-[600px] flex items-center justify-center p-4">
+        <div className="w-full max-w-md bg-[#121217] border border-[#232332] rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+          {/* Ambient background glow */}
+          <div className="absolute -top-24 -left-24 w-48 h-48 bg-violet-600/15 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
+
+          {/* Security Header Badge */}
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-tr from-violet-600 via-fuchsia-600 to-amber-500 p-0.5 shadow-lg shadow-violet-600/25">
+              <div className="w-full h-full bg-[#121217] rounded-[14px] flex items-center justify-center">
+                <Lock className="w-8 h-8 text-amber-400 animate-pulse" />
+              </div>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-400 text-[10px] font-bold tracking-wider uppercase mb-2">
+              <KeyRound className="w-3 h-3" />
+              <span>Admin Security Portal</span>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">Admin Console Access</h2>
+            <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+              Please enter the administrator password to unlock platform operations and telemetry.
+            </p>
+          </div>
+
+          {/* Password Form */}
+          <form onSubmit={handleUnlockAdmin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5 px-0.5">Admin Password</label>
+              <div className="relative flex items-center bg-[#1A1A24] rounded-2xl px-4 py-3 border border-[#2B2B3D] focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-500/20 transition-all">
+                <Lock className="w-4 h-4 text-slate-400 mr-2.5 shrink-0" />
+                <input
+                  id="admin-panel-password-input"
+                  type={showAdminPassword ? 'text' : 'password'}
+                  value={adminPasswordInput}
+                  onChange={(e) => {
+                    setAdminPasswordInput(e.target.value);
+                    if (passwordError) setPasswordError(null);
+                  }}
+                  placeholder="Enter admin password"
+                  autoFocus
+                  required
+                  className="w-full bg-transparent text-white text-sm font-medium placeholder:text-slate-500 focus:outline-hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowAdminPassword(!showAdminPassword)}
+                  className="text-slate-400 hover:text-slate-200 p-1 shrink-0 transition-colors"
+                  title={showAdminPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              {passwordError && (
+                <div className="flex items-center gap-1.5 mt-2 px-1 text-xs text-rose-400 font-semibold animate-shake">
+                  <ShieldAlert className="w-4 h-4 shrink-0" />
+                  <span>{passwordError}</span>
+                </div>
+              )}
+            </div>
+
+            <button
+              id="admin-panel-unlock-btn"
+              type="submit"
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-amber-500 hover:brightness-110 active:scale-[0.99] text-white font-black text-sm shadow-lg shadow-violet-600/30 flex items-center justify-center gap-2 transition-all"
+            >
+              <Unlock className="w-4 h-4" />
+              <span>Unlock Admin Panel</span>
+            </button>
+          </form>
+
+          {/* Switch back to Mobile Client */}
+          <div className="mt-5 pt-4 border-t border-[#232332] text-center">
+            <button
+              id="admin-panel-back-to-mobile"
+              type="button"
+              onClick={onSwitchToMobile}
+              className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Return to Live Mobile App</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const pendingWithdrawalsCount = withdrawals.filter((w) => w.status === 'PENDING').length;
   const pendingHostsCount = hostApplications.filter((a) => a.status === 'PENDING').length;
@@ -106,9 +231,18 @@ export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile
             <span className="text-[9px] font-bold text-violet-400 uppercase tracking-wider">Web Operations Console</span>
           </div>
         </div>
-        <button onClick={() => setIsDrawerOpen(true)} className="p-2 text-slate-300 hover:text-white transition-colors">
-          <Menu className="w-6 h-6" />
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={handleLockAdmin}
+            className="p-2 rounded-xl bg-[#1A1A24] text-rose-400 hover:text-rose-300 border border-rose-500/20 transition-colors"
+            title="Lock Admin Panel"
+          >
+            <Lock className="w-4 h-4" />
+          </button>
+          <button onClick={() => setIsDrawerOpen(true)} className="p-2 text-slate-300 hover:text-white transition-colors">
+            <Menu className="w-6 h-6" />
+          </button>
+        </div>
       </div>
 
       {/* MOBILE DRAWER BACKDROP */}
@@ -179,6 +313,14 @@ export const AdminContainer: React.FC<AdminContainerProps> = ({ onSwitchToMobile
           
           {/* Bottom Switcher to Mobile App */}
           <div className="pt-4 border-t border-[#232332] space-y-2 mt-auto">
+            <button
+              onClick={handleLockAdmin}
+              className="w-full py-2 rounded-xl bg-[#1A1A24] hover:bg-rose-500/10 text-rose-300 hover:text-rose-200 border border-rose-500/20 text-xs font-semibold flex items-center justify-center gap-2 transition-all"
+              title="Lock Admin Console"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Lock Admin Console</span>
+            </button>
             <button
               onClick={onSwitchToMobile}
               className="w-full py-2.5 rounded-xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-amber-500 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:brightness-110 active:scale-98 transition-all"

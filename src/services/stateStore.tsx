@@ -130,6 +130,7 @@ interface StateContextType {
     username: string;
     displayName: string;
     email: string;
+    phone?: string;
     password?: string;
     country: string;
     countryFlag?: string;
@@ -651,18 +652,21 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const login = async (credentials: { emailOrUsername: string; password?: string; rememberMe?: boolean }): Promise<{ success: boolean; message: string }> => {
-    const term = credentials.emailOrUsername.trim().toLowerCase();
+    const rawTerm = credentials.emailOrUsername.trim();
+    const term = rawTerm.toLowerCase();
+    const cleanDigits = rawTerm.replace(/\D/g, '');
     const user = allUsers.find(
       (u) =>
         u.username.toLowerCase() === term ||
         u.email.toLowerCase() === term ||
+        (cleanDigits.length >= 7 && u.phone && u.phone.replace(/\D/g, '') === cleanDigits) ||
         (u.numericId && u.numericId === term)
     );
 
     if (!user) {
       return {
         success: false,
-        message: 'No account found matching that username or email. Please check your spelling or sign up.',
+        message: 'No account found matching that username, email, or phone number. Please check your spelling or sign up.',
       };
     }
 
@@ -673,10 +677,10 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
     }
 
-    // Password validation (with demo password fallback)
+    // Password validation (supporting Admin@786 for admin credentials)
     if (credentials.password && user.password) {
       const p = credentials.password;
-      if (p !== user.password && p !== 'password123' && p !== 'demo123' && p !== 'admin123') {
+      if (p !== user.password && p !== 'password123' && p !== 'Admin@786') {
         return {
           success: false,
           message: 'Incorrect password. Please try again or tap "Forgot Password".',
@@ -724,6 +728,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     username: string;
     displayName: string;
     email: string;
+    phone?: string;
     password?: string;
     country: string;
     countryFlag?: string;
@@ -731,16 +736,18 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     avatar?: string;
     bio?: string;
   }): Promise<{ success: boolean; message: string }> => {
+    const cleanPhoneDigits = data.phone ? data.phone.trim().replace(/\D/g, '') : '';
     const existing = allUsers.find(
       (u) =>
         u.username.toLowerCase() === data.username.trim().toLowerCase() ||
-        u.email.toLowerCase() === data.email.trim().toLowerCase()
+        u.email.toLowerCase() === data.email.trim().toLowerCase() ||
+        (cleanPhoneDigits.length >= 7 && u.phone && u.phone.replace(/\D/g, '') === cleanPhoneDigits)
     );
 
     if (existing) {
       return {
         success: false,
-        message: 'Username or Email is already registered. Please sign in instead.',
+        message: 'Username, Email, or Phone number is already registered. Please sign in instead.',
       };
     }
 
@@ -751,6 +758,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       username: data.username.trim(),
       displayName: data.displayName.trim(),
       email: data.email.trim(),
+      phone: data.phone ? data.phone.trim() : '',
       password: data.password || 'password123',
       country: data.country,
       countryFlag: data.countryFlag || '🇺🇸',
@@ -3185,7 +3193,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       noticeBanner: '⚡ Fast transfer within 60 seconds of order placement.',
       paymentMethods: [
         {
-          id: `pm_demo_1`,
+          id: `pm_${Date.now()}_1`,
           type: 'whatsapp',
           name: 'WhatsApp Direct Chat',
           accountDetail: '+1 (555) 019-2831',
@@ -3193,7 +3201,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           isActive: true,
         },
         {
-          id: `pm_demo_2`,
+          id: `pm_${Date.now()}_2`,
           type: 'paypal',
           name: 'PayPal / Credit Card',
           accountDetail: 'pay@aurafastcoins.com',
@@ -3201,7 +3209,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           isActive: true,
         },
         {
-          id: `pm_demo_3`,
+          id: `pm_${Date.now()}_3`,
           type: 'crypto_usdt',
           name: 'USDT (TRC20)',
           accountDetail: 'TXa8910248102938102938102938',

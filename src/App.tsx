@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { StateProvider, useAppState } from './services/stateStore';
 import { MobileContainer } from './components/mobile/MobileContainer';
 import { AdminContainer } from './components/admin/AdminContainer';
@@ -7,24 +8,19 @@ import {
   Smartphone,
   LayoutDashboard,
   Sparkles,
-  Radio,
-  Coins,
-  DollarSign,
-  Crown,
-  Zap,
-  Users,
   LogIn,
   LogOut,
   UserPlus,
 } from 'lucide-react';
 
-const AppContent: React.FC = () => {
-  const [activePlatformView, setActivePlatformView] = useState<'mobile' | 'admin'>('mobile');
+const AppLayout: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const isAdminRoute = location.pathname.startsWith('/admin');
+
   const {
     currentUser,
-    allUsers,
     isAuthenticated,
-    isGuest,
     logout,
     openAuthModal,
     isAuthModalOpen,
@@ -34,10 +30,13 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center select-none">
-      {/* GLOBAL TOP NAVIGATION / DEMO CONTROL BAR */}
+      {/* GLOBAL TOP NAVIGATION & ROUTE CONTROL BAR */}
       <header className="w-full bg-slate-900/90 border-b border-slate-800 px-4 py-2.5 backdrop-blur-md sticky top-0 z-50 flex flex-wrap items-center justify-between gap-3">
         {/* Left Brand */}
-        <div className="flex items-center gap-3">
+        <div 
+          onClick={() => navigate('/')} 
+          className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity"
+        >
           <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 flex items-center justify-center text-white font-black text-base shadow-md shadow-amber-500/25">
             A
           </div>
@@ -57,35 +56,37 @@ const AppContent: React.FC = () => {
           </div>
         </div>
 
-        {/* Center Viewport Switcher */}
+        {/* Center Route Switcher */}
         <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-2xl border border-slate-800 shadow-inner">
           <button
-            onClick={() => setActivePlatformView('mobile')}
+            onClick={() => navigate('/')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-              activePlatformView === 'mobile'
+              !isAdminRoute
                 ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-md'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <Smartphone className="w-3.5 h-3.5" />
-            <span>Mobile App Client</span>
+            <span>Mobile App Client (/)</span>
           </button>
 
           <button
-            onClick={() => setActivePlatformView('admin')}
+            onClick={() => navigate('/admin')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-              activePlatformView === 'admin'
+              isAdminRoute
                 ? 'bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-md'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <LayoutDashboard className="w-3.5 h-3.5" />
-            <span>Web Admin Panel</span>
+            <span>Web Admin Panel (/admin)</span>
           </button>
 
           <button
             onClick={() => {
-              setActivePlatformView('mobile');
+              if (isAdminRoute) {
+                navigate('/');
+              }
               window.dispatchEvent(new CustomEvent('auravoice_trigger_splash'));
             }}
             className="px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 text-cyan-300 hover:text-cyan-200 hover:bg-cyan-950/40 border border-cyan-500/30 ml-1"
@@ -158,17 +159,39 @@ const AppContent: React.FC = () => {
         </div>
       </header>
 
-      {/* MAIN VIEWPORT BODY */}
+      {/* MAIN VIEWPORT BODY WITH REACT ROUTER */}
       <div className="w-full flex-1 flex items-center justify-center p-2 sm:p-4">
-        {activePlatformView === 'mobile' ? (
-          <div className="w-full flex items-center justify-center py-2 sm:py-4">
-            <MobileContainer />
-          </div>
-        ) : (
-          <div className="w-full max-w-7xl">
-            <AdminContainer onSwitchToMobile={() => setActivePlatformView('mobile')} />
-          </div>
-        )}
+        <Routes>
+          {/* Aam users ke liye main page */}
+          <Route
+            path="/"
+            element={
+              <div className="w-full flex items-center justify-center py-2 sm:py-4">
+                <MobileContainer />
+              </div>
+            }
+          />
+
+          {/* Admin panel ke liye alag route */}
+          <Route
+            path="/admin/*"
+            element={
+              <div className="w-full max-w-7xl">
+                <AdminContainer onSwitchToMobile={() => navigate('/')} />
+              </div>
+            }
+          />
+
+          {/* Fallback route */}
+          <Route
+            path="*"
+            element={
+              <div className="w-full flex items-center justify-center py-2 sm:py-4">
+                <MobileContainer />
+              </div>
+            }
+          />
+        </Routes>
       </div>
 
       {/* Global Auth Modal */}
@@ -184,7 +207,9 @@ const AppContent: React.FC = () => {
 export default function App() {
   return (
     <StateProvider>
-      <AppContent />
+      <Router>
+        <AppLayout />
+      </Router>
     </StateProvider>
   );
 }
