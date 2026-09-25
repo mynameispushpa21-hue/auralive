@@ -5,19 +5,19 @@ const env = (typeof import.meta !== 'undefined' && (import.meta as any).env) || 
 export const SUPABASE_URL: string =
   env.VITE_SUPABASE_URL ||
   env.SUPABASE_URL ||
-  'https://rwcwrstsxedipqteqyls.supabase.co';
+  'https://rfkigpyehwcogmdnauik.supabase.co';
 
 export const SUPABASE_PUBLISHABLE_KEY: string =
   env.VITE_SUPABASE_PUBLISHABLE_KEY ||
   env.VITE_SUPABASE_ANON_KEY ||
   env.SUPABASE_PUBLISHABLE_KEY ||
   env.SUPABASE_ANON_KEY ||
-  'sb_publishable_g9VQVb07To7RsXhQVY1GJw_sBeLJokt';
+  'sb_publishable_8O9V72MbNlgyRxLq9kGI7w_AScupRT2';
 
 export const SUPABASE_JWKS_URL: string =
   env.VITE_SUPABASE_JWKS_URL ||
   env.SUPABASE_JWKS_URL ||
-  'https://rwcwrstsxedipqteqyls.supabase.co/auth/v1/.well-known/jwks.json';
+  'https://rfkigpyehwcogmdnauik.supabase.co/auth/v1/.well-known/jwks.json';
 
 export const isSupabaseConfigured: boolean = Boolean(
   SUPABASE_URL &&
