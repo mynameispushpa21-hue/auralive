@@ -76,6 +76,7 @@ import {
   syncRoomToSupabase,
   syncTransactionToSupabase,
   syncGiftLogToSupabase,
+  invalidateProfileVipCache,
 } from './supabase';
 
 interface StateContextType {
@@ -2147,6 +2148,10 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setTransactions((prev) => [tx, ...prev]);
     audioEngine.playSoundEffect('fanfare');
+
+    // Sync updated VIP profile to Supabase 'profiles' table
+    syncProfileToSupabase(updatedUser);
+    invalidateProfileVipCache(currentUser.id);
 
     return { success: true, message: `Congratulations! You are now a ${tier.name} member!` };
   };

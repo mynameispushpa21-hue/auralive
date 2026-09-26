@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Mic, MicOff, Lock, Heart, Crown, Sparkles } from 'lucide-react';
 import { MicSeat, UserProfile } from '../../types';
 import { audioEngine } from '../../services/audioEngine';
+import { VIPBadge } from './VIPBadge';
 
 // Cozy rounded Armchair icon exactly matching the screenshot
 export const ArmchairIcon: React.FC<{ className?: string }> = ({
@@ -144,11 +145,13 @@ export const CoupleMicSeatPair: React.FC<CoupleMicSeatPairProps> = ({
               />
 
               {/* VIP Badge */}
-              {seat.user.vipTier && seat.user.vipTier !== 'vip_0' && (
-                <span className="absolute -top-1 -right-1 px-1 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-[7px] font-black text-white shadow-xs z-10">
-                  VIP
-                </span>
-              )}
+              <VIPBadge
+                userId={seat.user.id}
+                user={seat.user}
+                variant="badge-only"
+                size="xs"
+                className="absolute -top-1 -right-1 z-10 scale-75 origin-top-right"
+              />
 
               {/* Verified Seller Pin */}
               {(seat.user.role === 'seller' || seat.user.role === 'agent' || seat.user.isSeller) && (

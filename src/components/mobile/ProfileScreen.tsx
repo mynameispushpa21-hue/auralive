@@ -41,6 +41,7 @@ import { WalletRecordsModal } from './WalletRecordsModal';
 import { AppSettingsModal } from './AppSettingsModal';
 import { AgencyCenterModal } from './AgencyCenterModal';
 import { SellerBadge } from '../reseller/SellerBadge';
+import { VIPBadge } from './VIPBadge';
 import { audioEngine } from '../../services/audioEngine';
 
 interface ProfileScreenProps {
@@ -206,27 +207,30 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
         <div className="relative z-10 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
-            {/* Avatar & Frame */}
-            <div className="relative cursor-pointer" onClick={() => setIsEditModalOpen(true)}>
-              <img
-                src={currentUser.avatar}
-                alt={currentUser.displayName}
-                className="w-16 h-16 rounded-full object-cover ring-3 ring-violet-500 shadow-lg"
-              />
-              <span className="absolute -bottom-1 -right-1 px-1.5 py-0.2 rounded-full bg-violet-600 text-white text-[9px] font-black shadow-xs">
-                Lv.{currentUser.level}
-              </span>
-            </div>
+            {/* Avatar & Frame with VIPBadge styling */}
+            <VIPBadge
+              userId={currentUser.id}
+              user={currentUser}
+              avatarUrl={currentUser.avatar}
+              size="lg"
+              showLevel
+              showBadge
+              animate
+              onClick={() => setIsEditModalOpen(true)}
+              fallbackName={currentUser.displayName}
+            />
 
             <div>
               <div className="flex items-center gap-1.5 flex-wrap">
                 <h3 className="text-base font-extrabold text-white font-display">{currentUser.displayName}</h3>
                 <SellerBadge user={currentUser} size="xs" />
-                {currentUser.vipTier !== 'vip_0' && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-[9px] font-black text-white shadow-xs">
-                    {currentUser.vipTier.toUpperCase()}
-                  </span>
-                )}
+                <VIPBadge
+                  userId={currentUser.id}
+                  user={currentUser}
+                  variant="badge-only"
+                  size="xs"
+                  onClick={onOpenVIPCenter}
+                />
                 <span>{currentUser.countryFlag}</span>
               </div>
 

@@ -220,6 +220,83 @@ export const syncGiftLogToSupabase = async (giftData: any): Promise<void> => {
   }
 };
 
+export interface ProfileSubscriptionData {
+  vipTier: string;
+  vipExpiresAt?: string | null;
+  isActive: boolean;
+  level?: number;
+  displayName?: string;
+  avatar?: string;
+}
+
+// In-memory cache for fast lookups & debounce (15s cache)
+const profileVipCache = new Map<string, { data: ProfileSubscriptionData; timestamp: number }>();
+
+export const fetchProfileSubscription = async (userId: string): Promise<ProfileSubscriptionData | null> => {
+  if (!userId) return null;
+
+  const now = Date.now();
+  const cached = profileVipCache.get(userId);
+  if (cached && now - cached.timestamp < 15000) {
+    return cached.data;
+  }
+
+  const client = getSupabase();
+  if (!client) return null;
+
+  try {
+    const { data, error } = await client
+      .from('profiles')
+      .select('vip_tier, vip_expires_at, level, display_name, avatar')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error || !data) return null;
+
+    let vipTier = data.vip_tier || 'vip_0';
+    const expiresAt = data.vip_expires_at;
+    let isActive = false;
+
+    if (vipTier !== 'vip_0') {
+      if (!expiresAt) {
+        isActive = true;
+      } else {
+        const expTime = new Date(expiresAt).getTime();
+        if (expTime > now) {
+          isActive = true;
+        } else {
+          // Subscription expired
+          vipTier = 'vip_0';
+          isActive = false;
+        }
+      }
+    }
+
+    const result: ProfileSubscriptionData = {
+      vipTier,
+      vipExpiresAt: expiresAt,
+      isActive,
+      level: data.level || 1,
+      displayName: data.display_name,
+      avatar: data.avatar,
+    };
+
+    profileVipCache.set(userId, { data: result, timestamp: now });
+    return result;
+  } catch (err) {
+    console.debug('Failed to fetch profile subscription from Supabase:', err);
+    return null;
+  }
+};
+
+export const invalidateProfileVipCache = (userId?: string) => {
+  if (userId) {
+    profileVipCache.delete(userId);
+  } else {
+    profileVipCache.clear();
+  }
+};
+
 // SQL Schema Reference for the user to execute in Supabase SQL Editor
 export const SUPABASE_SQL_SCHEMA = `-- AuraVoice Database Schema for Supabase
 -- Target Project URL: https://rwcwrstsxedipqteqyls.supabase.co

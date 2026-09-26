@@ -11,6 +11,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { useAppState } from '../../services/stateStore';
+import { VIPBadge } from './VIPBadge';
 
 interface TopHostsLeaderboardProps {
   onOpenRankings?: () => void;
@@ -206,12 +207,15 @@ export const TopHostsLeaderboard: React.FC<TopHostsLeaderboardProps> = ({
                   </span>
                 </div>
 
-                {/* Mini-Avatar with Status Ring & Country Flag */}
+                {/* Mini-Avatar with VIP styling & Country Flag */}
                 <div className="relative shrink-0">
-                  <img
-                    src={host.avatar}
-                    alt={host.username}
-                    className={`w-10 h-10 rounded-full object-cover ${style.ring}`}
+                  <VIPBadge
+                    userId={host.userId}
+                    vipTier={host.vipTier}
+                    avatarUrl={host.avatar}
+                    size="sm"
+                    showBadge
+                    fallbackName={host.username}
                   />
 
                   {/* Country Flag badge */}

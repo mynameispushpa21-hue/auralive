@@ -19,6 +19,7 @@ import {
 import { useAppState } from '../../services/stateStore';
 import { VoiceRoom } from '../../types';
 import { TopHostsLeaderboard } from './TopHostsLeaderboard';
+import { VIPBadge } from './VIPBadge';
 
 interface HomeScreenProps {
   onJoinRoom: (roomId: string) => void;
@@ -238,10 +239,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
                 <div className="mt-2 pt-2 border-t border-[#232332] flex items-center justify-between text-[11px] text-slate-400">
                   <div className="flex items-center gap-1.5 truncate">
-                    <img
-                      src={room.host.avatar}
-                      alt={room.host.displayName}
-                      className="w-4 h-4 rounded-full object-cover ring-1 ring-violet-400"
+                    <VIPBadge
+                      userId={room.host.id}
+                      user={room.host}
+                      avatarUrl={room.host.avatar}
+                      size="xs"
+                      showBadge={false}
+                      fallbackName={room.host.displayName}
                     />
                     <span className="truncate">{room.host.displayName}</span>
                   </div>
