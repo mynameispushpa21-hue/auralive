@@ -78,6 +78,11 @@ import {
   syncGiftLogToSupabase,
   invalidateProfileVipCache,
 } from './supabase';
+import {
+  sendSignupEmailOtp,
+  verifySignupEmailOtp,
+  getActiveOtpForEmail,
+} from './otpService';
 
 interface StateContextType {
   currentUser: UserProfile;
@@ -139,6 +144,22 @@ interface StateContextType {
     avatar?: string;
     bio?: string;
   }) => Promise<{ success: boolean; message: string }>;
+  requestSignupOtp: (data: {
+    username: string;
+    displayName: string;
+    email: string;
+    phone?: string;
+    password?: string;
+    country: string;
+    countryFlag?: string;
+    gender: 'male' | 'female' | 'other';
+    avatar?: string;
+    bio?: string;
+  }) => Promise<{ success: boolean; message: string; code?: string; expiresAt?: number }>;
+  confirmSignupOtp: (email: string, otp: string) => Promise<{ success: boolean; message: string }>;
+  resendSignupOtp: (email: string) => Promise<{ success: boolean; message: string; code?: string }>;
+  pendingSignupData: any | null;
+  cancelPendingSignup: () => void;
   logout: () => void;
   socialLogin: (provider: 'google' | 'apple' | 'facebook' | 'phone') => Promise<{ success: boolean; message: string }>;
   resetPassword: (emailOrPhone: string, newPassword?: string) => Promise<{ success: boolean; message: string }>;
@@ -782,6 +803,8 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       isHost: false,
       isBanned: false,
       isMuted: false,
+      isEmailVerified: true,
+      emailVerifiedAt: new Date().toISOString(),
       fraudScore: 0,
       createdAt: new Date().toISOString(),
       lastLoginAt: new Date().toISOString(),
@@ -811,6 +834,137 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       success: true,
       message: 'Account created successfully! +1,000 Welcome Coins added to your wallet 🎉',
     };
+  };
+
+  const [pendingSignupData, setPendingSignupData] = useState<{
+    username: string;
+    displayName: string;
+    email: string;
+    phone?: string;
+    password?: string;
+    country: string;
+    countryFlag?: string;
+    gender: 'male' | 'female' | 'other';
+    avatar?: string;
+    bio?: string;
+  } | null>(() => {
+    try {
+      const saved = sessionStorage.getItem('auravoice_pending_signup');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+
+  const requestSignupOtp = async (data: {
+    username: string;
+    displayName: string;
+    email: string;
+    phone?: string;
+    password?: string;
+    country: string;
+    countryFlag?: string;
+    gender: 'male' | 'female' | 'other';
+    avatar?: string;
+    bio?: string;
+  }): Promise<{ success: boolean; message: string; code?: string; expiresAt?: number }> => {
+    const cleanEmail = data.email.trim().toLowerCase();
+    const cleanUsername = data.username.trim().toLowerCase();
+    const cleanPhoneDigits = data.phone ? data.phone.trim().replace(/\D/g, '') : '';
+
+    if (!cleanUsername || cleanUsername.length < 3) {
+      return { success: false, message: 'Username must be at least 3 characters long.' };
+    }
+
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      return { success: false, message: 'Please enter a valid email address.' };
+    }
+
+    const existing = allUsers.find(
+      (u) =>
+        u.username.toLowerCase() === cleanUsername ||
+        u.email.toLowerCase() === cleanEmail ||
+        (cleanPhoneDigits.length >= 7 && u.phone && u.phone.replace(/\D/g, '') === cleanPhoneDigits)
+    );
+
+    if (existing) {
+      return {
+        success: false,
+        message: 'This Username or Email is already registered. Please sign in instead.',
+      };
+    }
+
+    // Save pending registration payload
+    setPendingSignupData(data);
+    try {
+      sessionStorage.setItem('auravoice_pending_signup', JSON.stringify(data));
+    } catch {
+      // ignore
+    }
+
+    // Dispatch OTP via OTP service and Supabase
+    const otpRes = await sendSignupEmailOtp(cleanEmail, data.username);
+    return otpRes;
+  };
+
+  const confirmSignupOtp = async (
+    email: string,
+    otp: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const cleanEmail = email.trim().toLowerCase();
+    const verifyRes = await verifySignupEmailOtp(cleanEmail, otp);
+    if (!verifyRes.success) {
+      return verifyRes;
+    }
+
+    let dataToRegister = pendingSignupData;
+    if (!dataToRegister) {
+      try {
+        const saved = sessionStorage.getItem('auravoice_pending_signup');
+        if (saved) dataToRegister = JSON.parse(saved);
+      } catch {
+        // ignore
+      }
+    }
+
+    if (!dataToRegister || dataToRegister.email.toLowerCase() !== cleanEmail) {
+      return {
+        success: false,
+        message: 'Registration session expired or email mismatch. Please fill in the sign up form again.',
+      };
+    }
+
+    // Complete user registration
+    const res = await signup({
+      ...dataToRegister,
+    });
+
+    if (res.success) {
+      setPendingSignupData(null);
+      try {
+        sessionStorage.removeItem('auravoice_pending_signup');
+      } catch {
+        // ignore
+      }
+    }
+
+    return res;
+  };
+
+  const resendSignupOtp = async (
+    email: string
+  ): Promise<{ success: boolean; message: string; code?: string }> => {
+    return await sendSignupEmailOtp(email);
+  };
+
+  const cancelPendingSignup = () => {
+    setPendingSignupData(null);
+    try {
+      sessionStorage.removeItem('auravoice_pending_signup');
+    } catch {
+      // ignore
+    }
   };
 
   const logout = () => {
@@ -4749,6 +4903,11 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         closeAuthModal,
         login,
         signup,
+        requestSignupOtp,
+        confirmSignupOtp,
+        resendSignupOtp,
+        pendingSignupData,
+        cancelPendingSignup,
         logout,
         socialLogin,
         resetPassword,

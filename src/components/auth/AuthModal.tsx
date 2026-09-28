@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X,
@@ -14,18 +14,24 @@ import {
   Smartphone,
   Globe,
   ArrowRight,
+  ArrowLeft,
   ShieldCheck,
   KeyRound,
   RotateCw,
   Gift,
   Check,
+  Copy,
+  Clock,
+  Send,
+  MailCheck,
 } from 'lucide-react';
 import { useAppState } from '../../services/stateStore';
+import { getActiveOtpForEmail } from '../../services/otpService';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialMode?: 'login' | 'signup' | 'forgot_password';
+  initialMode?: 'login' | 'signup' | 'signup_otp' | 'forgot_password';
 }
 
 const PRESET_AVATARS = [
@@ -78,12 +84,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const {
     login,
     signup,
+    requestSignupOtp,
+    confirmSignupOtp,
+    resendSignupOtp,
     socialLogin,
     resetPassword,
     allUsers,
   } = useAppState();
 
-  const [mode, setMode] = useState<'login' | 'signup' | 'forgot_password'>(initialMode);
+  const [mode, setMode] = useState<'login' | 'signup' | 'signup_otp' | 'forgot_password'>(initialMode);
 
   // Sign In State
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -107,6 +116,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(true);
 
+  // Email Signup OTP State
+  const [signupOtp, setSignupOtp] = useState('');
+  const [otpResendSeconds, setOtpResendSeconds] = useState(60);
+  const [activeDeliveredOtp, setActiveDeliveredOtp] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
+
   // Forgot Password State
   const [forgotStep, setForgotStep] = useState<1 | 2 | 3>(1);
   const [forgotEmail, setForgotEmail] = useState('');
@@ -117,6 +132,35 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Countdown timer for resending OTP
+  useEffect(() => {
+    let timer: any;
+    if (mode === 'signup_otp' && otpResendSeconds > 0) {
+      timer = setInterval(() => {
+        setOtpResendSeconds((prev) => (prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [mode, otpResendSeconds]);
+
+  // Sync latest OTP for email
+  useEffect(() => {
+    if (signupEmail) {
+      const active = getActiveOtpForEmail(signupEmail);
+      if (active) {
+        setActiveDeliveredOtp(active.code);
+      }
+    }
+
+    const handleOtpEvent = (e: any) => {
+      if (e.detail && e.detail.email?.toLowerCase() === signupEmail.trim().toLowerCase()) {
+        setActiveDeliveredOtp(e.detail.code);
+      }
+    };
+    window.addEventListener('auravoice_otp_sent', handleOtpEvent);
+    return () => window.removeEventListener('auravoice_otp_sent', handleOtpEvent);
+  }, [signupEmail, mode]);
 
   if (!isOpen) return null;
 
@@ -220,7 +264,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setIsLoading(true);
     try {
       const finalAvatar = useCustomAvatar && customAvatarUrl.trim() ? customAvatarUrl.trim() : signupAvatar;
-      const res = await signup({
+      const res = await requestSignupOtp({
         username: signupUsername.trim(),
         displayName: signupDisplayName.trim() || signupUsername.trim(),
         email: signupEmail.trim(),
@@ -235,13 +279,67 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       if (!res.success) {
         setErrorMessage(res.message);
       } else {
+        if (res.code) {
+          setActiveDeliveredOtp(res.code);
+        }
+        setMode('signup_otp');
+        setSignupOtp('');
+        setOtpResendSeconds(60);
+        setSuccessMessage(`Verification code sent to ${signupEmail.trim()}! Please check your email.`);
+      }
+    } catch {
+      setErrorMessage('Failed to send verification code. Please check your network.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifySignupOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const cleanCode = signupOtp.trim().replace(/\D/g, '');
+    if (cleanCode.length !== 6) {
+      setErrorMessage('Please enter the full 6-digit verification code.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const res = await confirmSignupOtp(signupEmail.trim(), cleanCode);
+      if (!res.success) {
+        setErrorMessage(res.message);
+      } else {
         setSuccessMessage(res.message);
         setTimeout(() => {
           onClose();
         }, 800);
       }
     } catch {
-      setErrorMessage('Failed to create account. Please try again.');
+      setErrorMessage('Failed to verify OTP code. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (otpResendSeconds > 0 || isLoading) return;
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      const res = await resendSignupOtp(signupEmail.trim());
+      if (res.success) {
+        if (res.code) {
+          setActiveDeliveredOtp(res.code);
+        }
+        setOtpResendSeconds(60);
+        setSuccessMessage(`Fresh verification code resent to ${signupEmail.trim()}!`);
+      } else {
+        setErrorMessage(res.message);
+      }
+    } catch {
+      setErrorMessage('Failed to resend code. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -338,7 +436,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </div>
 
         {/* Mode Switcher Tabs */}
-        {mode !== 'forgot_password' && (
+        {mode !== 'forgot_password' && mode !== 'signup_otp' && (
           <div className="px-6 pt-4">
             <div className="grid grid-cols-2 p-1 rounded-2xl bg-[#0B0B0F] border border-[#232332]">
               <button
@@ -374,6 +472,36 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   +1K 🪙
                 </span>
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step Indicator Header when in Email OTP Mode */}
+        {mode === 'signup_otp' && (
+          <div className="px-6 pt-4">
+            <div className="flex items-center justify-between p-2.5 rounded-2xl bg-[#0B0B0F] border border-[#232332]">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('signup');
+                  setErrorMessage(null);
+                  setSuccessMessage(null);
+                }}
+                className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 hover:text-white transition-colors"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Edit Info</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-bold">
+                  <Check className="w-3 h-3 stroke-[3]" /> Details
+                </span>
+                <span className="text-slate-600">→</span>
+                <span className="px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 text-[10px] font-black border border-violet-500/40 animate-pulse">
+                  Step 2: Email OTP
+                </span>
+              </div>
             </div>
           </div>
         )}
@@ -800,16 +928,190 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 {isLoading ? (
                   <>
                     <RotateCw className="w-4 h-4 animate-spin" />
-                    <span>Creating Profile...</span>
+                    <span>Sending Email OTP...</span>
                   </>
                 ) : (
                   <>
-                    <Gift className="w-4 h-4 text-amber-300" />
-                    <span>Create Account & Get 1,000 Coins 🪙</span>
+                    <Send className="w-4 h-4 text-amber-300" />
+                    <span>Send Verification Code to Email ✉️</span>
                   </>
                 )}
               </button>
             </form>
+          )}
+
+          {/* ============================================================== */}
+          {/* EMAIL OTP VERIFICATION STEP (FOR NEW USERS)                   */}
+          {/* ============================================================== */}
+          {mode === 'signup_otp' && (
+            <div className="space-y-4">
+              {/* Animated Header Callout */}
+              <div className="p-4 rounded-3xl bg-gradient-to-b from-[#1A1A24] to-[#121217] border border-[#232332] text-center relative overflow-hidden">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-violet-600 via-fuchsia-600 to-indigo-600 text-white flex items-center justify-center mx-auto mb-2.5 shadow-lg shadow-violet-600/40 relative">
+                  <MailCheck className="w-7 h-7" />
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#121217] animate-ping" />
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-[#121217]" />
+                </div>
+                <h3 className="text-sm font-black text-white">Verify Your Email Address</h3>
+                <p className="text-[11px] text-slate-300 mt-1 max-w-xs mx-auto leading-relaxed">
+                  We've sent a 6-digit confirmation code to:
+                </p>
+                <div className="mt-1.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0B0B0F] border border-[#232332] text-violet-300 text-xs font-mono font-bold">
+                  <span>{signupEmail}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('signup');
+                      setErrorMessage(null);
+                    }}
+                    className="text-[10px] text-slate-400 hover:text-white underline ml-1 font-sans"
+                  >
+                    Change
+                  </button>
+                </div>
+              </div>
+
+              {/* Live Email Inbox Notification Preview (Simulated Inbox Card) */}
+              {activeDeliveredOtp && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="p-3.5 rounded-2xl bg-gradient-to-r from-violet-950/60 via-indigo-950/60 to-purple-950/60 border border-violet-500/40 text-slate-200 space-y-2"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1 rounded-lg bg-violet-600/30 text-violet-300">
+                        <Mail className="w-3.5 h-3.5" />
+                      </span>
+                      <span className="text-[11px] font-black text-white">Live Email Inbox Alert</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[9px] font-bold border border-emerald-500/30">
+                      Delivered
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] text-slate-400">Subject: AuraVoice Verification Code</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[10px] text-slate-300">Your OTP:</span>
+                        <span className="font-mono text-sm font-black tracking-widest text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/30">
+                          {activeDeliveredOtp}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSignupOtp(activeDeliveredOtp);
+                        setCopiedCode(true);
+                        setTimeout(() => setCopiedCode(false), 2000);
+                      }}
+                      className="px-2.5 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-[10px] flex items-center gap-1 shadow-sm transition-all"
+                    >
+                      {copiedCode || signupOtp === activeDeliveredOtp ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-300" />
+                          <span>Pasted!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Auto-Fill</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* 6-Digit OTP Form */}
+              <form onSubmit={handleVerifySignupOtp} className="space-y-3.5">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-bold text-slate-300">
+                      Enter 6-Digit Verification Code
+                    </label>
+                    <span className="text-[10px] text-slate-500">
+                      Valid for 10 minutes
+                    </span>
+                  </div>
+
+                  {/* 6-Digit Input Box */}
+                  <div className="relative">
+                    <input
+                      id="signup-otp-input"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      autoFocus
+                      value={signupOtp}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                        setSignupOtp(val);
+                      }}
+                      placeholder="• • • • • •"
+                      className="w-full py-3.5 px-4 rounded-2xl bg-[#1A1A24] border border-[#232332] text-center tracking-[0.45em] font-mono text-xl font-black text-white placeholder:text-slate-600 focus:outline-hidden focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Resend Timer & Button */}
+                <div className="flex items-center justify-between text-[11px] px-1">
+                  <span className="text-slate-400">Didn't receive the email?</span>
+                  <button
+                    type="button"
+                    disabled={otpResendSeconds > 0 || isLoading}
+                    onClick={handleResendOtp}
+                    className={`font-bold transition-colors flex items-center gap-1 ${
+                      otpResendSeconds > 0 || isLoading
+                        ? 'text-slate-500 cursor-not-allowed'
+                        : 'text-violet-400 hover:text-violet-300'
+                    }`}
+                  >
+                    <RotateCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
+                    <span>
+                      {otpResendSeconds > 0 ? `Resend Code (${otpResendSeconds}s)` : 'Resend Code Now'}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="space-y-2 pt-1">
+                  <button
+                    id="auth-verify-otp-submit-button"
+                    type="submit"
+                    disabled={isLoading || signupOtp.trim().length !== 6}
+                    className="w-full py-3 rounded-2xl bg-gradient-to-r from-violet-600 via-fuchsia-600 to-emerald-500 hover:brightness-110 active:scale-[0.99] text-white font-black text-xs shadow-lg shadow-violet-600/30 flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                  >
+                    {isLoading ? (
+                      <>
+                        <RotateCw className="w-4 h-4 animate-spin" />
+                        <span>Activating Account...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-4 h-4 text-emerald-300" />
+                        <span>Verify Email & Claim 1,000 Coins 🪙</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode('signup');
+                      setErrorMessage(null);
+                    }}
+                    className="w-full py-2 text-slate-400 hover:text-slate-200 text-[11px] font-bold text-center block"
+                  >
+                    ← Back to edit profile information
+                  </button>
+                </div>
+              </form>
+            </div>
           )}
 
           {/* ============================================================== */}

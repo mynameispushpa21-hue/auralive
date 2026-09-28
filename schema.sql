@@ -424,4 +424,26 @@ VALUES
   ('ride_phoenix_wings', 'Phoenix Fire Wings', 'rides', 'Spread burning mystical wings on every stage entrance', '🔥', 'EXCLUSIVE', 'Legendary', 4000, 13000, 40000)
 ON CONFLICT (id) DO NOTHING;
 
+-- ==============================================================================
+-- 15. EMAIL OTP & VERIFICATION SYSTEM (For New User Registration)
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS public.email_otps (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL,
+  otp_code TEXT NOT NULL,
+  purpose TEXT DEFAULT 'signup' CHECK (purpose IN ('signup', 'login', 'reset_password')),
+  attempts INTEGER DEFAULT 0,
+  is_verified BOOLEAN DEFAULT FALSE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_otps_email ON public.email_otps(email);
+CREATE INDEX IF NOT EXISTS idx_email_otps_expires ON public.email_otps(expires_at);
+
+ALTER TABLE public.email_otps ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Public email_otps read" ON public.email_otps FOR SELECT USING (true);
+CREATE POLICY "Public email_otps write" ON public.email_otps FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public email_otps update" ON public.email_otps FOR UPDATE USING (true);
+
 -- Schema setup complete.

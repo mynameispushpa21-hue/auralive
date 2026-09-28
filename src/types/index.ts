@@ -65,6 +65,8 @@ export interface UserProfile {
   isBanned: boolean;
   isMuted: boolean;
   isGuest?: boolean;
+  isEmailVerified?: boolean;
+  emailVerifiedAt?: string;
   fraudScore: number;
   createdAt: string;
   lastLoginAt: string;
@@ -83,6 +85,30 @@ export interface UserProfile {
   ownedEntryEffects?: string[];
   ownedSounds?: string[];
   ownedWaves?: string[];
+}
+
+export interface EmailOtpRecord {
+  id: string;
+  email: string;
+  otpCode: string;
+  purpose: 'signup' | 'login' | 'reset_password';
+  attempts: number;
+  isVerified: boolean;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface SignupPayload {
+  username: string;
+  displayName: string;
+  email: string;
+  phone?: string;
+  password?: string;
+  country: string;
+  countryFlag?: string;
+  gender: 'male' | 'female' | 'other';
+  avatar?: string;
+  bio?: string;
 }
 
 export type StoreItemCategory = 'frames' | 'rides' | 'sounds' | 'waves' | 'bubbles' | 'badges' | 'effects' | 'thrones';
