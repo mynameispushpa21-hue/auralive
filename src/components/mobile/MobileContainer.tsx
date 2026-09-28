@@ -67,6 +67,7 @@ export const MobileContainer: React.FC = () => {
     minimizeRoom,
     leaveRoom,
     currentUser,
+    conversations,
     notifications,
     joinRoom,
     activeGiftAnimation,
@@ -111,6 +112,10 @@ export const MobileContainer: React.FC = () => {
   }, []);
 
   const unreadNotifCount = notifications.filter((n) => !n.isRead).length;
+  const unreadMessagesCount = (conversations || []).reduce(
+    (acc, conv) => acc + (conv.unreadCount || 0),
+    0
+  );
 
   const handleOpenGiftModal = (user?: UserProfile | null) => {
     setGiftTargetUser(user || null);
@@ -468,10 +473,12 @@ export const MobileContainer: React.FC = () => {
                     activeTab === 'messages' ? 'text-[#00e5ff] drop-shadow-[0_0_6px_rgba(0,229,255,0.6)]' : 'text-slate-400 group-hover:text-slate-200'
                   }`}
                 />
-                {/* Red Circular Notification Badge with '2' */}
-                <span className="absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] px-1 rounded-full bg-[#ff2d55] text-white text-[9px] font-bold flex items-center justify-center shadow-[0_0_8px_rgba(255,45,85,0.85)] border border-white/20 leading-none">
-                  {unreadNotifCount > 0 ? unreadNotifCount : 2}
-                </span>
+                {/* Red Circular Notification Badge - Only shown when unread messages exist */}
+                {unreadMessagesCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2.5 min-w-[17px] h-[17px] px-1 rounded-full bg-[#ff2d55] text-white text-[9px] font-bold flex items-center justify-center shadow-[0_0_8px_rgba(255,45,85,0.85)] border border-white/20 leading-none">
+                    {unreadMessagesCount > 99 ? '99+' : unreadMessagesCount}
+                  </span>
+                )}
               </div>
               <span
                 className={`text-[11px] font-medium tracking-tight transition-colors ${
