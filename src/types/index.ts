@@ -618,7 +618,7 @@ export interface GiftComboState {
 export interface Conversation {
   id: string;
   participant: UserProfile;
-  lastMessage: DirectMessage;
+  lastMessage?: DirectMessage;
   unreadCount: number;
   updatedAt: string;
 }

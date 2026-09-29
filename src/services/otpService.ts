@@ -1,5 +1,3 @@
-import { getSupabase } from './supabase';
-
 export interface PendingOtpData {
   email: string;
   code: string;
@@ -99,35 +97,6 @@ export const sendSignupEmailOtp = async (
 
   otpStore.set(cleanEmail, otpData);
 
-  // Sync to Supabase email_otps table
-  const supabase = getSupabase();
-  if (supabase) {
-    try {
-      await supabase.from('email_otps').insert({
-        email: cleanEmail,
-        otp_code: code,
-        purpose: 'signup',
-        expires_at: new Date(expiresAt).toISOString(),
-        attempts: 0,
-        is_verified: false,
-      });
-
-      // Also trigger Supabase native auth OTP if enabled
-      try {
-        await supabase.auth.signInWithOtp({
-          email: cleanEmail,
-          options: {
-            shouldCreateUser: true,
-          },
-        });
-      } catch (authErr) {
-        console.debug('Supabase native auth OTP dispatch note:', authErr);
-      }
-    } catch (err) {
-      console.debug('Notice: Supabase email_otps table sync:', err);
-    }
-  }
-
   // Broadcast to live preview UI
   broadcastOtpDelivered(cleanEmail, code, 'signup', expiresAt);
 
@@ -183,20 +152,6 @@ export const verifySignupEmailOtp = async (
       // Success! Remove from pending store
       otpStore.delete(cleanEmail);
 
-      // Mark verified in Supabase
-      const supabase = getSupabase();
-      if (supabase) {
-        try {
-          await supabase
-            .from('email_otps')
-            .update({ is_verified: true })
-            .eq('email', cleanEmail)
-            .eq('otp_code', cleanCode);
-        } catch (err) {
-          console.debug('Supabase OTP verify sync notice:', err);
-        }
-      }
-
       return {
         success: true,
         message: 'Email successfully verified!',
@@ -208,45 +163,6 @@ export const verifySignupEmailOtp = async (
         success: false,
         message: `Incorrect verification code. ${remainingAttempts} attempts remaining.`,
       };
-    }
-  }
-
-  // Fallback: Check Supabase database if in-memory record was cleared (e.g. reload)
-  const supabase = getSupabase();
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('email_otps')
-        .select('*')
-        .eq('email', cleanEmail)
-        .eq('otp_code', cleanCode)
-        .eq('is_verified', false)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (!error && data) {
-        const expiresAt = new Date(data.expires_at).getTime();
-        if (now > expiresAt) {
-          return {
-            success: false,
-            message: 'This verification code has expired. Please request a new code.',
-          };
-        }
-
-        // Mark verified
-        await supabase
-          .from('email_otps')
-          .update({ is_verified: true })
-          .eq('id', data.id);
-
-        return {
-          success: true,
-          message: 'Email successfully verified!',
-        };
-      }
-    } catch (err) {
-      console.debug('Supabase query error:', err);
     }
   }
 

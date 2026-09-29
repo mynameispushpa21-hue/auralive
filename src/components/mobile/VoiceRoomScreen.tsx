@@ -42,6 +42,7 @@ import { Settings, Trophy } from 'lucide-react';
 
 interface VoiceRoomScreenProps {
   onOpenGiftModal: (targetUser?: UserProfile | null) => void;
+  onOpenGiftMarketplace?: (targetUser?: UserProfile | null) => void;
   onOpenCoinStore: () => void;
   onOpenBuyCoinsFromSeller?: () => void;
   isGiftModalOpen?: boolean;
@@ -49,6 +50,7 @@ interface VoiceRoomScreenProps {
 
 export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
   onOpenGiftModal,
+  onOpenGiftMarketplace,
   onOpenCoinStore,
   onOpenBuyCoinsFromSeller,
   isGiftModalOpen = false,
@@ -77,6 +79,7 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
     bindCpPartner,
     allUsers,
     hostUpdateRoom,
+    activeGiftAnimation,
   } = useAppState();
 
   const [chatInput, setChatInput] = useState('');
@@ -84,6 +87,34 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
   const [selectedSeatForAction, setSelectedSeatForAction] = useState<MicSeat | null>(null);
   const [cpWireLightPairs, setCpWireLightPairs] = useState<Record<number, boolean>>({});
   const [floatingHearts, setFloatingHearts] = useState<{ id: number; x: number }[]>([]);
+  const [floatingGifts, setFloatingGifts] = useState<
+    {
+      id: number;
+      icon: string;
+      senderName: string;
+      receiverName: string;
+      giftName: string;
+      count: number;
+      startX: number;
+    }[]
+  >([]);
+
+  useEffect(() => {
+    if (activeGiftAnimation) {
+      const count = activeGiftAnimation.comboStreak || activeGiftAnimation.count || 1;
+      const countToSpawn = Math.min(Math.max(count, 1), 6);
+      const newItems = Array.from({ length: countToSpawn }).map((_, i) => ({
+        id: Date.now() + i + Math.random(),
+        icon: activeGiftAnimation.gift.icon,
+        senderName: activeGiftAnimation.senderName,
+        receiverName: activeGiftAnimation.receiverName,
+        giftName: activeGiftAnimation.gift.name,
+        count: count,
+        startX: 12 + Math.random() * 76,
+      }));
+      setFloatingGifts((prev) => [...prev.slice(-14), ...newItems]);
+    }
+  }, [activeGiftAnimation]);
   const [isAmbientPlaying, setIsAmbientPlaying] = useState(false);
   const [isRealMicActive, setIsRealMicActive] = useState(false);
   const [localMicVolume, setLocalMicVolume] = useState(0);
@@ -102,7 +133,6 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
     const idToCopy = String(activeRoom.roomIdNumber || activeRoom.host.numericId || '201650');
     navigator.clipboard?.writeText(idToCopy);
     setCopiedIdToast(true);
-    audioEngine.playSoundEffect('chime');
     setTimeout(() => setCopiedIdToast(false), 2000);
   };
 
@@ -128,7 +158,6 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
     likeRoom(activeRoom.id);
     const newHeart = { id: Date.now() + Math.random(), x: Math.floor(Math.random() * 60) + 20 };
     setFloatingHearts((prev) => [...prev.slice(-15), newHeart]);
-    audioEngine.playSoundEffect('chime');
   };
 
   const handleSendChat = (e: React.FormEvent) => {
@@ -268,6 +297,40 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
             className="absolute bottom-16 text-2xl"
           >
             {['❤️', '💖', '🔥', '✨', '🌟', '🎉'][Math.floor(Math.random() * 6)]}
+          </motion.div>
+        ))}
+      </div>
+
+      {/* Floating Gifts Layer during Live Voice Session */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-25">
+        {floatingGifts.map((fg) => (
+          <motion.div
+            key={fg.id}
+            initial={{ y: '100%', opacity: 0, scale: 0.6, x: `${fg.startX}%` }}
+            animate={{
+              y: '-25%',
+              opacity: [0, 1, 1, 0.9, 0],
+              scale: [0.6, 1.25, 1.1, 0.9],
+              x: `${fg.startX + (Math.random() * 20 - 10)}%`,
+            }}
+            transition={{ duration: 3.2, ease: 'easeOut' }}
+            className="absolute bottom-20 flex flex-col items-center pointer-events-none"
+          >
+            <div className="relative">
+              <span className="text-4xl drop-shadow-[0_0_14px_rgba(245,158,11,0.9)] animate-bounce inline-block">
+                {fg.icon}
+              </span>
+              {fg.count > 1 && (
+                <span className="absolute -top-1 -right-2 px-1.5 py-0.5 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 text-slate-950 font-black text-[9px] shadow-md border border-white/60">
+                  x{fg.count}
+                </span>
+              )}
+            </div>
+            <div className="mt-1 px-2.5 py-0.5 rounded-full bg-[#0a0a14]/85 backdrop-blur-md border border-violet-500/40 text-[10px] font-bold text-amber-300 whitespace-nowrap shadow-lg flex items-center gap-1">
+              <span className="text-violet-200">{fg.senderName}</span>
+              <span className="text-amber-400">🎁</span>
+              <span className="text-pink-300">{fg.receiverName}</span>
+            </div>
           </motion.div>
         ))}
       </div>
@@ -850,6 +913,16 @@ export const VoiceRoomScreen: React.FC<VoiceRoomScreenProps> = ({
           <Music className="w-4 h-4" />
         </button>
 
+
+        {/* Gift Marketplace Modal Button */}
+        <button
+          id="voice-room-gift-marketplace-button"
+          onClick={() => (onOpenGiftMarketplace ? onOpenGiftMarketplace(null) : onOpenGiftModal(null))}
+          className="p-2 rounded-full bg-[#1A1A24] hover:bg-[#232332] text-amber-300 border border-amber-500/40 shadow-inner active:scale-95 transition-transform"
+          title="Gift Marketplace (Browse & Animations)"
+        >
+          <Sparkles className="w-4 h-4" />
+        </button>
 
         {/* Gift Button */}
         <button

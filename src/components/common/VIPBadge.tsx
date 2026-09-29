@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Crown, Sparkles, Gem, Shield, Star, Award } from 'lucide-react';
 import { VIPLevelId, UserProfile } from '../../types';
 import { useAppState } from '../../services/stateStore';
-import { fetchProfileSubscription } from '../../services/supabase';
 
 export interface VIPBadgeProps {
   /** User UUID to fetch live subscription status from 'profiles' table */
@@ -219,7 +218,7 @@ export const VIPBadge: React.FC<VIPBadgeProps> = ({
 
   const [isSubscriptionActive, setIsSubscriptionActive] = useState<boolean>(true);
 
-  // Sync / Fetch live subscription status from Supabase profiles table
+  // Sync VIP subscription status from app context
   useEffect(() => {
     let isMounted = true;
 
@@ -239,19 +238,19 @@ export const VIPBadge: React.FC<VIPBadgeProps> = ({
       return;
     }
 
-    // If userId is provided, query 'profiles' table for up-to-date VIP status
+    // If userId is provided, query local users for up-to-date VIP status
     if (userId) {
-      fetchProfileSubscription(userId).then((subData) => {
-        if (!isMounted || !subData) return;
-        setResolvedTier(subData.vipTier);
-        setIsSubscriptionActive(subData.isActive);
-        if (subData.level !== undefined && explicitLevel === undefined) {
-          setResolvedLevel(subData.level);
+      const match = allUsers?.find((u) => u.id === userId);
+      if (match) {
+        setResolvedTier(match.vipTier || 'vip_0');
+        setIsSubscriptionActive(true);
+        if (match.level !== undefined && explicitLevel === undefined) {
+          setResolvedLevel(match.level);
         }
-        if (subData.avatar && !avatarUrl) {
-          setResolvedAvatar(subData.avatar);
+        if (match.avatar && !avatarUrl) {
+          setResolvedAvatar(match.avatar);
         }
-      });
+      }
     } else if (user) {
       setResolvedTier(user.vipTier || 'vip_0');
       if (user.level !== undefined && explicitLevel === undefined) {

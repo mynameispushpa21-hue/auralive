@@ -96,7 +96,6 @@ export const GiftComboButton: React.FC<GiftComboButtonProps> = ({
     e.stopPropagation();
     if (!canAfford) {
       setInsufficientError(true);
-      audioEngine.playSoundEffect('chime');
       setTimeout(() => setInsufficientError(false), 1500);
       if (onOpenCoinStore) {
         onOpenCoinStore();

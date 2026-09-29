@@ -43,6 +43,7 @@ import { AgencyCenterModal } from './AgencyCenterModal';
 import { SellerBadge } from '../reseller/SellerBadge';
 import { VIPBadge } from './VIPBadge';
 import { audioEngine } from '../../services/audioEngine';
+import { VIPLevelId } from '../../types';
 
 interface ProfileScreenProps {
   onOpenCoinStore: () => void;
@@ -51,6 +52,7 @@ interface ProfileScreenProps {
   onOpenHostCenter: () => void;
   onOpenMissions: () => void;
   onOpenSellerDashboard?: () => void;
+  onOpenVIPMembershipModal?: (tierId?: VIPLevelId) => void;
 }
 
 const PRESET_AVATARS = [
@@ -80,6 +82,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onOpenHostCenter,
   onOpenMissions,
   onOpenSellerDashboard,
+  onOpenVIPMembershipModal,
 }) => {
   const {
     currentUser,
@@ -134,14 +137,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
       navigator.clipboard.writeText(idToCopy);
     }
     setCopiedIdToast(true);
-    audioEngine.playSoundEffect('chime');
     setTimeout(() => setCopiedIdToast(false), 2200);
   };
 
   const handleOpenSocialTab = (tab: SocialModalTab) => {
     setSocialModalTab(tab);
     setIsSocialModalOpen(true);
-    audioEngine.playSoundEffect('chime');
   };
 
   const handleCountryChange = (countryName: string) => {
@@ -229,7 +230,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                   user={currentUser}
                   variant="badge-only"
                   size="xs"
-                  onClick={onOpenVIPCenter}
+                  onClick={() => {
+                    if (onOpenVIPMembershipModal) onOpenVIPMembershipModal();
+                    else onOpenVIPCenter();
+                  }}
                 />
                 <span>{currentUser.countryFlag}</span>
               </div>
@@ -447,8 +451,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               id="profile-vip-btn"
               onClick={() => {
-                onOpenVIPCenter();
-                audioEngine.playSoundEffect('chime');
+                if (onOpenVIPMembershipModal) {
+                  onOpenVIPMembershipModal();
+                } else {
+                  onOpenVIPCenter();
+                }
               }}
               className="p-3.5 rounded-2xl border border-white/60 hover:border-teal-300 flex flex-col justify-between text-left transition-all duration-200 group active:scale-[0.98] shadow-md relative overflow-hidden min-h-[104px]"
               style={{
@@ -478,7 +485,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 onOpenHostCenter();
-                audioEngine.playSoundEffect('chime');
               }}
               className="p-3.5 rounded-2xl border border-white/60 hover:border-teal-300 flex flex-col justify-between text-left transition-all duration-200 group active:scale-[0.98] shadow-md relative overflow-hidden min-h-[104px]"
               style={{
@@ -508,7 +514,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 onOpenMissions();
-                audioEngine.playSoundEffect('chime');
               }}
               className="p-3.5 rounded-2xl border border-white/60 hover:border-teal-300 flex flex-col justify-between text-left transition-all duration-200 group active:scale-[0.98] shadow-md relative overflow-hidden min-h-[104px]"
               style={{
@@ -536,7 +541,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 setIsAgencyCenterOpen(true);
-                audioEngine.playSoundEffect('chime');
               }}
               className="p-3.5 rounded-2xl border border-white/60 hover:border-teal-300 flex flex-col justify-between text-left transition-all duration-200 group active:scale-[0.98] shadow-md relative overflow-hidden min-h-[104px]"
               style={{
@@ -559,7 +563,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 setIsStoreModalOpen(true);
-                audioEngine.playSoundEffect('chime');
               }}
               className="p-3.5 rounded-2xl border border-white/60 hover:border-teal-300 flex flex-col justify-between text-left transition-all duration-200 group active:scale-[0.98] shadow-md relative overflow-hidden min-h-[104px]"
               style={{
@@ -587,7 +590,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 setIsBackpackModalOpen(true);
-                audioEngine.playSoundEffect('chime');
               }}
               className="p-3.5 rounded-2xl border border-white/60 hover:border-teal-300 flex flex-col justify-between text-left transition-all duration-200 group active:scale-[0.98] shadow-md relative overflow-hidden min-h-[104px]"
               style={{
@@ -610,7 +612,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 setIsWalletRecordsOpen(true);
-                audioEngine.playSoundEffect('chime');
               }}
               className="p-3.5 rounded-2xl border border-white/60 hover:border-teal-300 flex flex-col justify-between text-left transition-all duration-200 group active:scale-[0.98] shadow-md relative overflow-hidden min-h-[104px]"
               style={{
@@ -633,7 +634,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 onOpenSellerDashboard?.();
-                audioEngine.playSoundEffect('chime');
               }}
               className="p-3.5 rounded-2xl border border-white/60 hover:border-teal-300 flex flex-col justify-between text-left transition-all duration-200 group active:scale-[0.98] shadow-md relative overflow-hidden min-h-[104px]"
               style={{
@@ -669,8 +669,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             {/* VIP Center */}
             <button
               onClick={() => {
-                onOpenVIPCenter();
-                audioEngine.playSoundEffect('chime');
+                if (onOpenVIPMembershipModal) {
+                  onOpenVIPMembershipModal();
+                } else {
+                  onOpenVIPCenter();
+                }
               }}
               className="p-3 rounded-2xl bg-[#121217] border border-[#232332] hover:border-violet-500/40 flex flex-col items-center justify-center text-center transition-all group active:scale-95 relative"
             >
@@ -684,7 +687,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 onOpenHostCenter();
-                audioEngine.playSoundEffect('chime');
               }}
               className="p-3 rounded-2xl bg-[#121217] border border-[#232332] hover:border-amber-500/40 flex flex-col items-center justify-center text-center transition-all group active:scale-95 relative"
             >
@@ -698,7 +700,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 onOpenMissions();
-                audioEngine.playSoundEffect('chime');
               }}
               className="p-3 rounded-2xl bg-[#121217] border border-[#232332] hover:border-emerald-500/40 flex flex-col items-center justify-center text-center transition-all group active:scale-95 relative"
             >
@@ -712,7 +713,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 setIsAgencyCenterOpen(true);
-                audioEngine.playSoundEffect('chime');
               }}
               className="p-3 rounded-2xl bg-[#121217] border border-[#232332] hover:border-indigo-500/40 flex flex-col items-center justify-center text-center transition-all group active:scale-95 relative"
             >
@@ -726,7 +726,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 setIsStoreModalOpen(true);
-                audioEngine.playSoundEffect('chime');
               }}
               className="p-3 rounded-2xl bg-violet-950/20 border border-violet-500/30 hover:border-fuchsia-500/50 flex flex-col items-center justify-center text-center transition-all group active:scale-95 relative"
             >
@@ -743,7 +742,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 setIsBackpackModalOpen(true);
-                audioEngine.playSoundEffect('chime');
               }}
               className="p-3 rounded-2xl bg-[#121217] border border-[#232332] hover:border-fuchsia-500/40 flex flex-col items-center justify-center text-center transition-all group active:scale-95 relative"
             >
@@ -757,7 +755,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 setIsWalletRecordsOpen(true);
-                audioEngine.playSoundEffect('chime');
               }}
               className="p-3 rounded-2xl bg-[#121217] border border-[#232332] hover:border-cyan-500/40 flex flex-col items-center justify-center text-center transition-all group active:scale-95 relative"
             >
@@ -771,7 +768,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 onOpenSellerDashboard?.();
-                audioEngine.playSoundEffect('chime');
               }}
               className="p-3 rounded-2xl bg-amber-950/20 border border-amber-500/30 hover:border-amber-400 flex flex-col items-center justify-center text-center transition-all group active:scale-95 relative"
             >
@@ -789,8 +785,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             {/* VIP Center */}
             <button
               onClick={() => {
-                onOpenVIPCenter();
-                audioEngine.playSoundEffect('chime');
+                if (onOpenVIPMembershipModal) {
+                  onOpenVIPMembershipModal();
+                } else {
+                  onOpenVIPCenter();
+                }
               }}
               className="w-full p-3.5 rounded-2xl bg-[#121217] border border-[#232332] hover:border-violet-500/40 flex items-center justify-between transition-all group"
             >
@@ -810,7 +809,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 onOpenHostCenter();
-                audioEngine.playSoundEffect('chime');
               }}
               className="w-full p-3.5 rounded-2xl bg-[#121217] border border-[#232332] hover:border-amber-500/40 flex items-center justify-between transition-all group"
             >
@@ -830,7 +828,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 onOpenMissions();
-                audioEngine.playSoundEffect('chime');
               }}
               className="w-full p-3.5 rounded-2xl bg-[#121217] border border-[#232332] hover:border-emerald-500/40 flex items-center justify-between transition-all group"
             >
@@ -850,7 +847,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 setIsAgencyCenterOpen(true);
-                audioEngine.playSoundEffect('chime');
               }}
               className="w-full p-3.5 rounded-2xl bg-[#121217] border border-[#232332] hover:border-indigo-500/40 flex items-center justify-between transition-all group"
             >
@@ -870,7 +866,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 setIsStoreModalOpen(true);
-                audioEngine.playSoundEffect('chime');
               }}
               className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-violet-950/40 via-[#151522] to-fuchsia-950/30 border border-violet-500/30 hover:border-violet-500/60 flex items-center justify-between transition-all group shadow-xs"
             >
@@ -895,7 +890,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 setIsBackpackModalOpen(true);
-                audioEngine.playSoundEffect('chime');
               }}
               className="w-full p-3.5 rounded-2xl bg-[#121217] border border-[#232332] hover:border-fuchsia-500/40 flex items-center justify-between transition-all group"
             >
@@ -915,7 +909,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 setIsWalletRecordsOpen(true);
-                audioEngine.playSoundEffect('chime');
               }}
               className="w-full p-3.5 rounded-2xl bg-[#121217] border border-[#232332] hover:border-cyan-500/40 flex items-center justify-between transition-all group"
             >
@@ -935,7 +928,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <button
               onClick={() => {
                 onOpenSellerDashboard?.();
-                audioEngine.playSoundEffect('chime');
               }}
               className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-[#161622] to-[#121217] border border-amber-500/40 hover:border-amber-400 flex items-center justify-between transition-all group shadow-md"
             >

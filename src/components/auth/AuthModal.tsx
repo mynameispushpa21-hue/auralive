@@ -937,6 +937,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                   </>
                 )}
               </button>
+
+              {/* Instant Social Signup */}
+              <div className="relative py-1.5 flex items-center justify-center">
+                <div className="w-full border-t border-[#232332]" />
+                <span className="absolute px-2.5 bg-[#121217] text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+                  or sign up with
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleSocialSignIn('google')}
+                className="w-full py-2.5 px-3 rounded-xl bg-[#1A1A24] hover:bg-[#232332] border border-[#232332] text-slate-200 font-bold text-[11px] flex items-center justify-center gap-2 transition-colors"
+              >
+                <span className="font-black text-sm text-amber-400">G</span>
+                <span>Instant Sign Up with Google</span>
+              </button>
             </form>
           )}
 

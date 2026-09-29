@@ -75,7 +75,6 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onOpenGiftModal 
   const handleSendVoiceNote = () => {
     if (!activeConvId) return;
     sendDirectMessage(activeConvId, '🎙️ Voice message (0:12s)', 'voice', 12);
-    audioEngine.playSoundEffect('chime');
   };
 
   const handlePlayVoice = (msgId: string) => {
@@ -194,6 +193,16 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onOpenGiftModal 
                 Audio Session Encrypted • Direct Message
               </span>
             </div>
+
+            {currentMessages.length === 0 && (
+              <div className="py-12 text-center text-slate-400 space-y-2">
+                <div className="w-12 h-12 rounded-full bg-[#1A1A24] border border-[#232332] flex items-center justify-center mx-auto text-violet-400">
+                  <Smile className="w-6 h-6" />
+                </div>
+                <p className="text-xs font-semibold text-slate-200">No messages yet</p>
+                <p className="text-[11px] text-slate-400">Say hello to {activePartner.displayName} to start chatting!</p>
+              </div>
+            )}
 
             {currentMessages.map((msg) => {
               const isMine = msg.senderId === currentUser.id;
@@ -401,7 +410,7 @@ export const MessagesScreen: React.FC<MessagesScreenProps> = ({ onOpenGiftModal 
                         )}
                       </div>
                       <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">
-                        {conv.lastMessage?.message || 'Started a new conversation'}
+                        {conv.lastMessage?.message || 'Tap to chat'}
                       </p>
                     </div>
                   </div>

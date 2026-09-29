@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import { useAppState } from '../../services/stateStore';
 import { StoreItem, StoreItemCategory, ItemDuration } from '../../types';
-import { audioEngine } from '../../services/audioEngine';
 
 interface StoreModalProps {
   isOpen: boolean;

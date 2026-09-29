@@ -34,6 +34,7 @@ import { VoiceRoomScreen } from './VoiceRoomScreen';
 import { AuthScreen } from './AuthScreen';
 import { GiftComboButton } from './GiftComboButton';
 import { GiftModal } from './GiftModal';
+import { GiftMarketplaceModal } from './GiftMarketplaceModal';
 import { CoinStoreModal } from './CoinStoreModal';
 import { CreateRoomModal } from './CreateRoomModal';
 import { WithdrawalModal } from './WithdrawalModal';
@@ -42,8 +43,9 @@ import { AuthModal } from '../auth/AuthModal';
 import { CoinSellerDashboard } from '../reseller/CoinSellerDashboard';
 import { BuyCoinsFromSellerModal } from '../reseller/BuyCoinsFromSellerModal';
 import { TransferCoinsModal } from '../reseller/TransferCoinsModal';
+import { VIPMembershipModal } from './VIPMembershipModal';
 import { SplashScreen } from './SplashScreen';
-import { UserProfile } from '../../types';
+import { UserProfile, VIPLevelId } from '../../types';
 
 export type MobileTab =
   | 'home'
@@ -86,11 +88,14 @@ export const MobileContainer: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<MobileTab>('home');
   const [isGiftModalOpen, setIsGiftModalOpen] = useState(false);
+  const [isGiftMarketplaceOpen, setIsGiftMarketplaceOpen] = useState(false);
   const [isCoinStoreOpen, setIsCoinStoreOpen] = useState(false);
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
   const [isWithdrawalOpen, setIsWithdrawalOpen] = useState(false);
   const [isBuyCoinsFromSellerOpen, setIsBuyCoinsFromSellerOpen] = useState(false);
   const [isSellerTransferModalOpen, setIsSellerTransferModalOpen] = useState(false);
+  const [isVIPMembershipModalOpen, setIsVIPMembershipModalOpen] = useState(false);
+  const [vipModalInitialTier, setVipModalInitialTier] = useState<VIPLevelId>('vip_3');
   const [showSplash, setShowSplash] = useState(true);
   const [giftTargetUser, setGiftTargetUser] = useState<UserProfile | null>(null);
   const [currentTime, setCurrentTime] = useState('9:41');
@@ -120,6 +125,11 @@ export const MobileContainer: React.FC = () => {
   const handleOpenGiftModal = (user?: UserProfile | null) => {
     setGiftTargetUser(user || null);
     setIsGiftModalOpen(true);
+  };
+
+  const handleOpenVIPMembershipModal = (tierId: VIPLevelId = 'vip_3') => {
+    setVipModalInitialTier(tierId);
+    setIsVIPMembershipModalOpen(true);
   };
 
   const handleJoinRoom = (roomId: string) => {
@@ -238,9 +248,13 @@ export const MobileContainer: React.FC = () => {
           /* If Active Room is open and NOT minimized -> Render full Voice Room Screen */
           <VoiceRoomScreen
             onOpenGiftModal={handleOpenGiftModal}
+            onOpenGiftMarketplace={(user) => {
+              setGiftTargetUser(user || null);
+              setIsGiftMarketplaceOpen(true);
+            }}
             onOpenCoinStore={() => setIsCoinStoreOpen(true)}
             onOpenBuyCoinsFromSeller={() => setIsBuyCoinsFromSellerOpen(true)}
-            isGiftModalOpen={isGiftModalOpen}
+            isGiftModalOpen={isGiftModalOpen || isGiftMarketplaceOpen}
           />
         ) : (
           /* Normal Tab Screen Navigation */
@@ -289,6 +303,7 @@ export const MobileContainer: React.FC = () => {
                 onOpenHostCenter={() => setActiveTab('host_center')}
                 onOpenMissions={() => setActiveTab('missions')}
                 onOpenSellerDashboard={() => setActiveTab('seller_dashboard')}
+                onOpenVIPMembershipModal={handleOpenVIPMembershipModal}
               />
             )}
             {activeTab === 'seller_dashboard' && (
@@ -298,6 +313,7 @@ export const MobileContainer: React.FC = () => {
               <VIPCenterScreen
                 onOpenCoinStore={() => setIsCoinStoreOpen(true)}
                 onBack={() => setActiveTab('profile')}
+                onOpenVIPMembershipModal={handleOpenVIPMembershipModal}
               />
             )}
             {activeTab === 'host_center' && (
@@ -390,7 +406,7 @@ export const MobileContainer: React.FC = () => {
       </AnimatePresence>
 
       {/* BOTTOM NAVIGATION BAR - Capsule Floating Dock matching Screenshot */}
-      {(!activeRoom || isRoomMinimized) && (
+      {isAuthenticated && (!activeRoom || isRoomMinimized) && (
         <div className="relative z-20 px-3 pb-3 pt-1">
           <div className="relative px-3 py-1.5 rounded-[28px] bg-gradient-to-b from-[#0e1628] to-[#090e1c] border border-[#1e293b]/90 backdrop-blur-2xl shadow-[0_12px_36px_rgba(0,0,0,0.85)] flex items-center justify-between">
             {/* 1. HOME TAB */}
@@ -546,6 +562,16 @@ export const MobileContainer: React.FC = () => {
         targetUser={giftTargetUser}
       />
 
+      <GiftMarketplaceModal
+        isOpen={isGiftMarketplaceOpen}
+        onClose={() => setIsGiftMarketplaceOpen(false)}
+        onOpenCoinStore={() => {
+          setIsGiftMarketplaceOpen(false);
+          setIsCoinStoreOpen(true);
+        }}
+        targetUser={giftTargetUser}
+      />
+
       <CoinStoreModal
         isOpen={isCoinStoreOpen}
         onClose={() => setIsCoinStoreOpen(false)}
@@ -575,6 +601,16 @@ export const MobileContainer: React.FC = () => {
       <TransferCoinsModal
         isOpen={isSellerTransferModalOpen}
         onClose={() => setIsSellerTransferModalOpen(false)}
+      />
+
+      <VIPMembershipModal
+        isOpen={isVIPMembershipModalOpen}
+        onClose={() => setIsVIPMembershipModalOpen(false)}
+        initialTierId={vipModalInitialTier}
+        onOpenCoinStore={() => {
+          setIsVIPMembershipModalOpen(false);
+          setIsCoinStoreOpen(true);
+        }}
       />
     </div>
   );

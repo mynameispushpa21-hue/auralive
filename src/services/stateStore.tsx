@@ -72,17 +72,17 @@ import { ROOM_THEMES, getThemeById } from '../data/roomThemesData';
 import { audioEngine } from './audioEngine';
 import confetti from 'canvas-confetti';
 import {
-  syncProfileToSupabase,
-  syncRoomToSupabase,
-  syncTransactionToSupabase,
-  syncGiftLogToSupabase,
-  invalidateProfileVipCache,
-} from './supabase';
-import {
   sendSignupEmailOtp,
   verifySignupEmailOtp,
   getActiveOtpForEmail,
 } from './otpService';
+import {
+  registerUserInFirebase,
+  syncUserProfileToFirebase,
+  syncAllUsersToFirebase,
+  loginWithFirebase,
+  loginWithGoogleFirebase,
+} from './firebaseAuthService';
 
 interface StateContextType {
   currentUser: UserProfile;
@@ -210,7 +210,8 @@ interface StateContextType {
   clearGiftAnimation: () => void;
   dismissGiftAnimation: () => void;
   purchaseCoinPackage: (packageId: string, paymentMethod: string) => Promise<{ success: boolean; message: string }>;
-  subscribeVIP: (vipId: string) => { success: boolean; message: string };
+  subscribeVIP: (vipId: string, durationMonths?: number, paymentMethod?: 'coins' | 'card' | 'store' | 'demo') => { success: boolean; message: string };
+  cancelVIPSubscription: () => { success: boolean; message: string };
   storeItems: StoreItem[];
   buyStoreItem: (itemId: string, duration: ItemDuration, autoEquip?: boolean) => { success: boolean; message: string };
   equipStoreItem: (category: StoreItemCategory, itemId: string, name?: string) => void;
@@ -453,12 +454,25 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             localStorage.setItem('auravoice_custom_users', JSON.stringify(cleaned));
             setAllUsers(cleaned);
           }
+          // Immediately sync all saved custom users to Firebase Realtime Database & Auth!
+          if (cleaned.length > 0) {
+            syncAllUsersToFirebase(cleaned).catch((err) => {
+              console.warn('Initial Firebase users sync notice:', err);
+            });
+          }
         }
       }
     } catch {
       // ignore
     }
   }, []);
+
+  // Auto-sync current user state changes to Firebase Firestore and Realtime Database
+  useEffect(() => {
+    if (isAuthenticated && currentUser && currentUser.id && !currentUser.id.startsWith('demo_')) {
+      syncUserProfileToFirebase(currentUser).catch(() => {});
+    }
+  }, [currentUser, isAuthenticated]);
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'signup' | 'forgot_password'>('login');
@@ -725,7 +739,15 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // safe fallback
     }
 
-    audioEngine.playSoundEffect('chime');
+    // Sync login to Firebase Authentication and update lastLoginAt in Firestore & Realtime Database
+    try {
+      if (credentials.password && user.email) {
+        loginWithFirebase(user.email, credentials.password).catch(() => {});
+      }
+      syncUserProfileToFirebase(updatedUser).catch(() => {});
+    } catch {
+      // safe fallback
+    }
 
     const newLog: AdminAuditLog = {
       id: `audit_${Date.now()}`,
@@ -824,15 +846,33 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // ignore
     }
 
-    // Sync user with Supabase cloud database
-    syncProfileToSupabase(newUser);
+    // Explicitly create user in Firebase Authentication, Cloud Firestore & Realtime Database!
+    let fbSuccess = false;
+    try {
+      const fbResult = await registerUserInFirebase(newUser, data.password);
+      if (fbResult.firebaseUid && fbResult.firebaseUid !== newUser.id) {
+        newUser.id = fbResult.firebaseUid;
+        setCurrentUser({ ...newUser });
+        try {
+          localStorage.setItem('auravoice_current_user', JSON.stringify(newUser));
+          localStorage.setItem('auravoice_auth_user_id', newUser.id);
+        } catch {
+          // ignore
+        }
+      }
+      fbSuccess = fbResult.authSuccess || fbResult.firestoreSuccess || fbResult.rtdbSuccess;
+    } catch (fbErr) {
+      console.warn('Firebase registration non-fatal error:', fbErr);
+    }
 
     audioEngine.playSoundEffect('fanfare');
     confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } });
 
     return {
       success: true,
-      message: 'Account created successfully! +1,000 Welcome Coins added to your wallet 🎉',
+      message: fbSuccess
+        ? 'Account created & saved to Firebase! +1,000 Welcome Coins added 🎉'
+        : 'Account created successfully! +1,000 Welcome Coins added to your wallet 🎉',
     };
   };
 
@@ -903,7 +943,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // ignore
     }
 
-    // Dispatch OTP via OTP service and Supabase
+    // Dispatch OTP via OTP service
     const otpRes = await sendSignupEmailOtp(cleanEmail, data.username);
     return otpRes;
   };
@@ -975,10 +1015,10 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       localStorage.removeItem('auravoice_auth_user_id');
       localStorage.removeItem('auravoice_is_guest');
+      localStorage.removeItem('auravoice_current_user');
     } catch {
       // safe fallback
     }
-    audioEngine.playSoundEffect('chime');
   };
 
   const socialLogin = async (provider: 'google' | 'apple' | 'facebook' | 'phone'): Promise<{ success: boolean; message: string }> => {
@@ -1030,7 +1070,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } catch {
         // ignore
       }
-      syncProfileToSupabase(targetUser);
     }
 
     setCurrentUser(targetUser);
@@ -1042,6 +1081,13 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       localStorage.setItem('auravoice_auth_user_id', targetUser.id);
     } catch {
       // ignore
+    }
+
+    // Sync social login user to Firebase Firestore and Realtime Database
+    try {
+      syncUserProfileToFirebase(targetUser).catch(() => {});
+    } catch {
+      // safe fallback
     }
 
     audioEngine.playSoundEffect('fanfare');
@@ -1072,7 +1118,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setAllUsers((users) => users.map((u) => (u.id === user.id ? { ...u, password: newPassword } : u)));
     }
 
-    audioEngine.playSoundEffect('chime');
     return {
       success: true,
       message: 'Password reset code verified. Your password has been updated!',
@@ -1114,7 +1159,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } catch {
         // ignore
       }
-      audioEngine.playSoundEffect('chime');
     }
   };
 
@@ -1122,7 +1166,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentUser((prev) => {
       const updated = { ...prev, ...updates };
       setAllUsers((users) => users.map((u) => (u.id === prev.id ? updated : u)));
-      syncProfileToSupabase(updated);
       return updated;
     });
   };
@@ -1171,8 +1214,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       return updated;
     });
-
-    audioEngine.playSoundEffect('chime');
   };
 
   const bindCpPartner = (targetUserId: string, cost: number, ringId: string): boolean => {
@@ -1267,9 +1308,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setIsRoomMinimized(false);
     audioEngine.playSoundEffect('fanfare');
 
-    // Sync room with Supabase cloud database
-    syncRoomToSupabase(newRoom);
-
     return newRoom;
   };
 
@@ -1302,8 +1340,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ...prev,
       [roomId]: [...(prev[roomId] || []), joinMsg],
     }));
-
-    audioEngine.playSoundEffect('chime');
   };
 
   const leaveRoom = () => {
@@ -1397,7 +1433,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const updatedRoom = { ...activeRoom, seats: cleanedSeats };
     setActiveRoom(updatedRoom);
     setRooms((prev) => prev.map((r) => (r.id === activeRoom.id ? updatedRoom : r)));
-    audioEngine.playSoundEffect('chime');
     return true;
   };
 
@@ -1443,7 +1478,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const updatedRoom = { ...activeRoom, seats: cleaned };
     setActiveRoom(updatedRoom);
     setRooms((prev) => prev.map((r) => (r.id === activeRoom.id ? updatedRoom : r)));
-    audioEngine.playSoundEffect('chime');
     return true;
   };
 
@@ -1744,7 +1778,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       themeId: theme.id,
     });
 
-    audioEngine.playSoundEffect('chime');
     return { success: true, message: `Applied ${theme.name} stage theme!` };
   };
 
@@ -1904,18 +1937,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     setTransactions((prev) => [txSender, txReceiver, ...prev]);
-
-    // Sync Gift Log to Supabase
-    syncGiftLogToSupabase({
-      roomId: targetRoomId,
-      senderId: currentUser.id,
-      receiverId: receiver.id,
-      giftId: gift.id,
-      giftName: gift.name,
-      giftIcon: gift.icon,
-      coinCost: totalCoinPrice,
-      comboCount: count,
-    });
 
     // Update seat received diamonds if in active room
     if (activeRoom) {
@@ -2267,47 +2288,105 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   // VIP SUBSCRIPTION
-  const subscribeVIP = (vipId: string): { success: boolean; message: string } => {
+  const subscribeVIP = (
+    vipId: string,
+    durationMonths: number = 1,
+    paymentMethod: 'coins' | 'card' | 'store' | 'demo' = 'coins'
+  ): { success: boolean; message: string } => {
     const tier = vipTiers.find((t) => t.id === vipId);
     if (!tier) return { success: false, message: 'VIP tier not found' };
 
-    if (currentUser.coins < tier.monthlyCoinPrice) {
-      return { success: false, message: `Insufficient coins. Need ${tier.monthlyCoinPrice.toLocaleString()} coins.` };
+    let discountMultiplier = 1;
+    if (durationMonths === 3) discountMultiplier = 0.9; // 10% bonus savings
+    if (durationMonths >= 12) discountMultiplier = 0.75; // 25% annual bonus savings
+
+    const totalCoinsNeeded = Math.round(tier.monthlyCoinPrice * durationMonths * discountMultiplier);
+
+    let newCoins = currentUser.coins;
+
+    if (paymentMethod === 'coins') {
+      if (currentUser.coins < totalCoinsNeeded) {
+        return {
+          success: false,
+          message: `Insufficient coins. You have ${currentUser.coins.toLocaleString()} coins, but need ${totalCoinsNeeded.toLocaleString()} coins.`,
+        };
+      }
+      newCoins = currentUser.coins - totalCoinsNeeded;
+    } else if (durationMonths >= 12) {
+      // Annual pass bonus reward: 5,000 bonus coins!
+      newCoins = currentUser.coins + 5000;
     }
 
-    const newCoins = currentUser.coins - tier.monthlyCoinPrice;
-    const updatedUser = {
+    const durationDays = durationMonths * 30;
+    const expiresAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString();
+
+    const updatedUser: UserProfile = {
       ...currentUser,
       coins: newCoins,
       vipTier: tier.id as any,
-      vipExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      vipExpiresAt: expiresAt,
     };
 
     setCurrentUser(updatedUser);
     setAllUsers((users) => users.map((u) => (u.id === currentUser.id ? updatedUser : u)));
+
+    const methodLabel =
+      paymentMethod === 'coins'
+        ? `${totalCoinsNeeded.toLocaleString()} Coins`
+        : paymentMethod === 'card'
+        ? 'Credit Card (Simulated)'
+        : paymentMethod === 'store'
+        ? 'App Store (Simulated)'
+        : 'Demo Activation';
 
     const tx: WalletTransaction = {
       id: `tx_${Date.now()}_vip`,
       userId: currentUser.id,
       type: 'vip_subscription',
       currency: 'COINS',
-      amount: tier.monthlyCoinPrice,
-      direction: 'DEBIT',
+      amount: paymentMethod === 'coins' ? totalCoinsNeeded : 0,
+      direction: paymentMethod === 'coins' ? 'DEBIT' : 'CREDIT',
       balanceAfter: newCoins,
       referenceId: `vip_${tier.id}`,
-      description: `Subscribed to ${tier.name} (30 Days)`,
+      description: `Subscribed to ${tier.name} (${durationDays} Days via ${methodLabel})`,
       status: 'SUCCESS',
       createdAt: new Date().toISOString(),
     };
 
     setTransactions((prev) => [tx, ...prev]);
+
+    // Send in-app notification
+    const vipNotification: NotificationItem = {
+      id: `notif_vip_${Date.now()}`,
+      userId: currentUser.id,
+      type: 'system',
+      title: `👑 VIP Activated: ${tier.name}`,
+      message: `Your ${tier.name} privileges are active for ${durationDays} days! Enjoy your ${tier.giftDiscountPercent}% gift discount and ${tier.entryAnimation} entrance visual FX.`,
+      isRead: false,
+      createdAt: new Date().toISOString(),
+    };
+    setNotifications((prev) => [vipNotification, ...prev]);
+
     audioEngine.playSoundEffect('fanfare');
 
-    // Sync updated VIP profile to Supabase 'profiles' table
-    syncProfileToSupabase(updatedUser);
-    invalidateProfileVipCache(currentUser.id);
+    return {
+      success: true,
+      message: `Congratulations! You are now a ${tier.name} member for ${durationDays} days!`,
+    };
+  };
 
-    return { success: true, message: `Congratulations! You are now a ${tier.name} member!` };
+  const cancelVIPSubscription = (): { success: boolean; message: string } => {
+    if (currentUser.vipTier === 'vip_0') {
+      return { success: false, message: 'You do not have an active VIP subscription.' };
+    }
+    const updatedUser: UserProfile = {
+      ...currentUser,
+      vipTier: 'vip_0',
+      vipExpiresAt: undefined,
+    };
+    setCurrentUser(updatedUser);
+    setAllUsers((users) => users.map((u) => (u.id === currentUser.id ? updatedUser : u)));
+    return { success: true, message: 'VIP subscription has been set to Standard.' };
   };
 
   // STORE ITEM PURCHASING & INVENTORY
@@ -2500,7 +2579,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setCurrentUser(updatedUser);
     setAllUsers((users) => users.map((u) => (u.id === currentUser.id ? updatedUser : u)));
-    audioEngine.playSoundEffect('chime');
   };
 
   // HOST WITHDRAWAL REQUEST
@@ -2552,7 +2630,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     setTransactions((prev) => [tx, ...prev]);
-    audioEngine.playSoundEffect('chime');
 
     return { success: true, message: `Withdrawal request for $${cashValue.toFixed(2)} USD submitted for admin approval.` };
   };
@@ -2759,9 +2836,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return next;
     });
 
-    // Sync transaction to Supabase
-    syncTransactionToSupabase(sellerTx);
-
     // 7. Push real-time notification to recipient
     const recipientNotification: NotificationItem = {
       id: `notif_${Date.now()}`,
@@ -2854,8 +2928,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       createdAt: new Date().toISOString(),
     };
     setNotifications((prev) => [sellerNotif, ...prev]);
-
-    audioEngine.playSoundEffect('chime');
 
     return {
       success: true,
@@ -3491,21 +3563,9 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       return dummyConv;
     }
     const newConvId = `conv_${Date.now()}`;
-    const welcomeMsg: DirectMessage = {
-      id: `msg_${Date.now()}`,
-      conversationId: newConvId,
-      senderId: partner.id,
-      receiverId: currentUser.id,
-      message: `Hey! Thanks for connecting. How is your day going? ✨`,
-      type: 'text',
-      isRead: true,
-      createdAt: new Date().toISOString(),
-    };
-
     const newConv: Conversation = {
       id: newConvId,
       participant: partner,
-      lastMessage: welcomeMsg,
       unreadCount: 0,
       updatedAt: new Date().toISOString(),
     };
@@ -3513,7 +3573,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setConversations((prev) => [newConv, ...prev]);
     setDirectMessages((prev) => ({
       ...prev,
-      [newConvId]: [welcomeMsg],
+      [newConvId]: [],
     }));
     setActiveConversation(newConv);
     return newConv;
@@ -3577,49 +3637,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return [newConv, ...prev];
       }
     });
-
-    audioEngine.playSoundEffect('chime');
-
-    // Simulate smart interactive creator auto-response if partner is an AI host
-    if (partnerUser.id !== currentUser.id && type !== 'gift') {
-      const partner = partnerUser;
-      setTimeout(() => {
-        const replies = [
-          `Hey ${currentUser.displayName}! Thanks for messaging 🎧 Loving the audio vibes today!`,
-          `Got your message! Let's definitely jam in the voice lounge soon 🎙️✨`,
-          `Appreciate you stopping by! What are you listening to right now? 🎶`,
-          `Sending positive energy your way! See you on stage tonight 🔥`,
-          `Thanks for supporting the room! Feel free to grab a mic seat anytime 🌟`,
-        ];
-        const randomReply = replies[Math.floor(Math.random() * replies.length)];
-
-        const replyMsg: DirectMessage = {
-          id: `msg_reply_${Date.now()}`,
-          conversationId: convId,
-          senderId: partner.id,
-          receiverId: currentUser.id,
-          message: randomReply,
-          type: 'text',
-          isRead: false,
-          createdAt: new Date().toISOString(),
-        };
-
-        setDirectMessages((prev) => ({
-          ...prev,
-          [convId]: [...(prev[convId] || []), replyMsg],
-        }));
-
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === convId
-              ? { ...c, lastMessage: replyMsg, unreadCount: c.unreadCount + 1, updatedAt: new Date().toISOString() }
-              : c
-          )
-        );
-
-        audioEngine.playSoundEffect('chime');
-      }, 1400);
-    }
   };
 
   const deleteConversation = (convId: string) => {
@@ -3632,7 +3649,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (activeConversation?.id === convId) {
       setActiveConversation(null);
     }
-    audioEngine.playSoundEffect('chime');
   };
 
   const markConversationAsRead = (convId: string) => {
@@ -4718,8 +4734,6 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       } else if (multiplier >= 10) {
         audioEngine.playSoundEffect('magic');
         confetti({ particleCount: 60, spread: 50, origin: { y: 0.7 } });
-      } else {
-        audioEngine.playSoundEffect('chime');
       }
     }
 
@@ -4949,6 +4963,7 @@ export const StateProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         resetCombo,
         purchaseCoinPackage,
         subscribeVIP,
+        cancelVIPSubscription,
         storeItems,
         buyStoreItem,
         equipStoreItem,

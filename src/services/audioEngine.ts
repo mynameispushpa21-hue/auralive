@@ -45,11 +45,15 @@ class AudioEngineService {
   // Play Sound Effects (synthesized via Web Audio API - no external broken audio URLs needed)
   public playSoundEffect(type: SoundEffectType | string) {
     try {
+      // Tap and click sounds are disabled throughout the app
+      if (type === 'chime' || type === 'pop' || type === 'tap' || type === 'click') {
+        return;
+      }
+
       const ctx = this.getContext();
       const now = ctx.currentTime;
 
       switch (type) {
-        case 'chime':
         case 'coin':
         case 'bell': {
           const osc = ctx.createOscillator();

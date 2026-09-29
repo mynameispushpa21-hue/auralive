@@ -7,9 +7,14 @@ import { VIPLevelId } from '../../types';
 interface VIPCenterScreenProps {
   onOpenCoinStore: () => void;
   onBack?: () => void;
+  onOpenVIPMembershipModal?: (tierId?: VIPLevelId) => void;
 }
 
-export const VIPCenterScreen: React.FC<VIPCenterScreenProps> = ({ onOpenCoinStore, onBack }) => {
+export const VIPCenterScreen: React.FC<VIPCenterScreenProps> = ({
+  onOpenCoinStore,
+  onBack,
+  onOpenVIPMembershipModal,
+}) => {
   const { vipTiers, currentUser, subscribeVIP } = useAppState();
   const [selectedVipId, setSelectedVipId] = useState<VIPLevelId>('vip_3');
   const [feedbackNotice, setFeedbackNotice] = useState<{ success: boolean; message: string } | null>(null);
@@ -17,6 +22,10 @@ export const VIPCenterScreen: React.FC<VIPCenterScreenProps> = ({ onOpenCoinStor
   const selectedTier = vipTiers.find((t) => t.id === selectedVipId) || vipTiers[0];
 
   const handleSubscribe = () => {
+    if (onOpenVIPMembershipModal) {
+      onOpenVIPMembershipModal(selectedTier.id);
+      return;
+    }
     setFeedbackNotice(null);
     const res = subscribeVIP(selectedTier.id);
     setFeedbackNotice(res);
@@ -60,6 +69,22 @@ export const VIPCenterScreen: React.FC<VIPCenterScreenProps> = ({ onOpenCoinStor
             <Plus className="w-3 h-3 ml-0.5" />
           </button>
         </div>
+
+        {onOpenVIPMembershipModal && (
+          <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between">
+            <span className="text-xs text-amber-300 font-semibold flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Compare Gold, Platinum & Diamond</span>
+            </span>
+            <button
+              onClick={() => onOpenVIPMembershipModal(selectedVipId)}
+              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-xs hover:brightness-110 shadow-md shadow-amber-500/20 flex items-center gap-1.5"
+            >
+              <Crown className="w-3.5 h-3.5 fill-slate-950" />
+              <span>VIP Membership Modal</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {feedbackNotice && (
